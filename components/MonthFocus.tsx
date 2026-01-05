@@ -190,7 +190,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
         </h2>
       </div>
 
-      <div className="grid grid-cols-7 border-b-2 border-black">
+      <div className="hidden md:grid grid-cols-7 border-b-2 border-black">
         {WEEKDAYS.map((day, i) => (
           <div key={day} className="bg-gray-50 border-r border-gray-200 last:border-r-0 text-gray-900 text-center py-3 text-[11px] font-black uppercase tracking-widest">
             <span className="hidden md:inline">{day}</span>
@@ -199,7 +199,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 auto-rows-fr bg-gray-300 gap-px">
+      <div className="grid grid-cols-1 md:grid-cols-7 auto-rows-fr bg-gray-300 gap-px">
         {Array.from({ length: 35 }).map((_, i) => {
           const dayNum = i - startOffset + 1;
           const isDay = dayNum > 0 && dayNum <= daysInMonth;
@@ -207,6 +207,9 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
           const isToday = dateStr === todayStr;
           const dayTasks = tasksByDate[dateStr]?.tasks || [];
           const highlight = isDay ? getDayHighlight(dateStr) : null;
+          
+          // Calculate weekday for mobile view
+          const weekDayName = WEEKDAYS[i % 7];
 
           return (
             <div 
@@ -214,8 +217,8 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
               onClick={() => isDay && !editingTaskId && setEditingDay(dateStr)}
               onDragOver={handleDragOver}
               onDrop={(e) => isDay && handleDropOnDay(e, dateStr)}
-              className={`min-h-[160px] p-2 transition-all relative group flex flex-col ${
-                isDay ? 'bg-white hover:bg-gray-50' : 'bg-gray-100'
+              className={`min-h-[120px] md:min-h-[160px] p-2 transition-all relative group flex flex-col ${
+                isDay ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hidden md:flex' // Hide empty cells on mobile
               } ${isToday ? 'ring-4 ring-blue-500 ring-inset z-10' : ''}`}
             >
               {isDay && (
@@ -228,10 +231,15 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                     />
                   )}
 
-                  <div className="flex justify-between items-start mb-2 z-10 relative pointer-events-none">
-                    <span className={`text-base font-black ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
-                      {dayNum}
-                    </span>
+                  <div className="flex justify-between items-center mb-2 z-10 relative pointer-events-none">
+                    <div className="flex items-baseline gap-2">
+                      <span className={`text-base font-black ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+                        {dayNum}
+                      </span>
+                      <span className="md:hidden text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        {weekDayName}
+                      </span>
+                    </div>
                     {isToday && <span className="text-[7px] uppercase bg-blue-500 text-white px-1.5 py-0.5 rounded-full animate-pulse font-black">Today</span>}
                   </div>
 
