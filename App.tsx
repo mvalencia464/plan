@@ -338,7 +338,9 @@ const App: React.FC = () => {
             <div className="animate-in fade-in zoom-in-95 duration-500">
               <PreloadedCalendar 
                 year={year} 
-                events={preloadedEvents} 
+                events={preloadedEvents}
+                onAddEvent={(e) => setPreloadedEvents(prev => [...prev, e])}
+                onClearEvents={() => setPreloadedEvents([])}
               />
             </div>
           )}
