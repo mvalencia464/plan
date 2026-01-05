@@ -136,7 +136,7 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
                       </div>
                       
                       {hasEvent && (
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white shadow-2xl rounded-md border border-gray-100 p-3 z-50 opacity-0 group-hover:opacity-100 pointer-events-auto transition-opacity" onClick={(e) => e.stopPropagation()}>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white shadow-2xl rounded-md border border-gray-100 p-3 z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity" onClick={(e) => e.stopPropagation()}>
                           {dayEvents.map((e, idx) => (
                             <div key={idx} className="mb-3 last:mb-0">
                               <span className="font-black uppercase text-[7px] block text-blue-600 mb-0.5 tracking-widest">{e.category}</span>
