@@ -56,7 +56,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
-    link.setAttribute('download', `Stoke_Planner_Strategy_${year}.ics`);
+    link.setAttribute('download', `War_Map_Strategy_${year}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -214,7 +214,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     <div className="flex flex-col xl:flex-row gap-8" onMouseUp={onMouseUp}>
       <div className="flex-1">
         <h2 className="text-3xl font-black text-center mb-8 uppercase tracking-[0.3em] text-gray-800">
-          {year} Strategic Stoke Planner
+          War Map {year}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {MONTH_NAMES.map((_, i) => (
@@ -228,7 +228,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="w-full xl:w-96 bg-white border border-gray-300 flex flex-col h-fit sticky top-24 shadow-xl">
         <div className="bg-black text-white text-center font-black py-4 uppercase tracking-[0.2em] text-xs flex justify-between px-5 items-center">
           <div className="flex flex-col items-start text-left">
-            <span>Initiative Key</span>
+            <span>War Map Strategy</span>
             <span className="text-[7px] opacity-50 font-medium normal-case tracking-normal">Plot blocks by dragging on calendar</span>
           </div>
           <div className="flex gap-3">
