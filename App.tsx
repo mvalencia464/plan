@@ -229,9 +229,9 @@ const App: React.FC = () => {
             {/* Auth Button */}
             {session ? (
                <div className="flex items-center gap-3">
-                 {session.user.user_metadata.avatar_url ? (
+                 {session.user.user_metadata.avatar_url || session.user.user_metadata.picture ? (
                     <img 
-                      src={session.user.user_metadata.avatar_url} 
+                      src={session.user.user_metadata.avatar_url || session.user.user_metadata.picture} 
                       alt="User Avatar" 
                       className="w-8 h-8 rounded-full border border-gray-700"
                       title={session.user.email} 
@@ -290,13 +290,22 @@ const App: React.FC = () => {
               )}
             </div>
 
-            <select 
-              value={year} 
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="bg-transparent text-xs font-black border-none focus:ring-0 cursor-pointer text-gray-400 hover:text-white uppercase"
-            >
-              {years.map(y => <option key={y} value={y} className="bg-black text-white">{y}</option>)}
-            </select>
+            <div className="flex items-center gap-2">
+              <select 
+                value={year} 
+                onChange={(e) => setYear(Number(e.target.value))}
+                className="bg-transparent text-xs font-black border-none focus:ring-0 cursor-pointer text-gray-400 hover:text-white uppercase"
+              >
+                {years.map(y => <option key={y} value={y} className="bg-black text-white">{y}</option>)}
+              </select>
+              <button 
+                onClick={handleAddYear}
+                className="text-gray-500 hover:text-white transition-colors"
+                title="Add Next Year"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" /></svg>
+              </button>
+            </div>
             <button 
               onClick={() => window.print()}
               className="p-2 text-gray-500 hover:text-white transition-colors"
