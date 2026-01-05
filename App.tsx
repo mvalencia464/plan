@@ -1,5 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from './services/supabaseClient';
 import Dashboard from './components/Dashboard';
 import MonthFocus from './components/MonthFocus';
 import PreloadedCalendar from './components/PreloadedCalendar';
@@ -18,6 +20,9 @@ const App: React.FC = () => {
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
+  // Auth State
+  const [session, setSession] = useState<Session | null>(null);
+
   // Persistent State
   const [tasksByDate, setTasksByDate] = useState<Record<string, any>>(() => {
     const saved = localStorage.getItem('war_map_tasks');
@@ -39,21 +44,77 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Auth & Data Sync Effects
   useEffect(() => {
-    localStorage.setItem('war_map_tasks', JSON.stringify(tasksByDate));
-  }, [tasksByDate]);
+    // 1. Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) loadUserData(session.user.id);
+    });
 
-  useEffect(() => {
-    localStorage.setItem('war_map_keys', JSON.stringify(colorKeys));
-  }, [colorKeys]);
+    // 2. Listen for changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        loadUserData(session.user.id);
+      }
+    });
 
-  useEffect(() => {
-    localStorage.setItem('war_map_events', JSON.stringify(preloadedEvents));
-  }, [preloadedEvents]);
+    return () => subscription.unsubscribe();
+  }, []);
 
+  const loadUserData = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('war_map_data')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error loading data:', error);
+      return;
+    }
+
+    if (data) {
+      if (data.tasks_by_date) setTasksByDate(data.tasks_by_date);
+      if (data.color_keys) setColorKeys(data.color_keys);
+      if (data.preloaded_events) setPreloadedEvents(data.preloaded_events);
+      if (data.rice_projects) setRiceProjects(data.rice_projects);
+    }
+  };
+
+  const saveData = async () => {
+    if (!session) return;
+    
+    const { error } = await supabase
+      .from('war_map_data')
+      .upsert({
+        user_id: session.user.id,
+        tasks_by_date: tasksByDate,
+        color_keys: colorKeys,
+        preloaded_events: preloadedEvents,
+        rice_projects: riceProjects,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) console.error('Error saving data:', error);
+  };
+
+  // Debounced Save
   useEffect(() => {
-    localStorage.setItem('war_map_rice', JSON.stringify(riceProjects));
-  }, [riceProjects]);
+    const timeout = setTimeout(() => {
+      if (session) saveData();
+      // Also keep local storage in sync as backup
+      localStorage.setItem('war_map_tasks', JSON.stringify(tasksByDate));
+      localStorage.setItem('war_map_keys', JSON.stringify(colorKeys));
+      localStorage.setItem('war_map_events', JSON.stringify(preloadedEvents));
+      localStorage.setItem('war_map_rice', JSON.stringify(riceProjects));
+    }, 2000); // Save after 2 seconds of inactivity
+
+    return () => clearTimeout(timeout);
+  }, [tasksByDate, colorKeys, preloadedEvents, riceProjects, session]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -64,6 +125,24 @@ const App: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    // Optional: Clear local state on logout
+    // setTasksByDate({});
+    // setColorKeys(INITIAL_KEYS);
+    // ...
+  };
 
   const handleUpdateTasks = (date: string, tasks: Task[]) => {
     setTasksByDate(prev => ({
@@ -142,6 +221,31 @@ const App: React.FC = () => {
           </nav>
 
           <div className="flex items-center gap-4">
+            {/* Auth Button */}
+            {session ? (
+               <div className="flex items-center gap-2">
+                 <span className="text-[10px] text-gray-400 hidden md:inline-block">
+                    {session.user.email}
+                 </span>
+                 <button 
+                   onClick={handleLogout}
+                   className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"
+                 >
+                   Logout
+                 </button>
+               </div>
+            ) : (
+              <button 
+                onClick={handleLogin}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-blue-600 text-white rounded hover:bg-blue-500 transition-all flex items-center gap-2"
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
+                Sign In
+              </button>
+            )}
+
+            <div className="h-6 w-px bg-gray-800 mx-2 hidden md:block" />
+
             <div className="relative" ref={dropdownRef}>
               <button 
                 onClick={() => setShowToolsDropdown(!showToolsDropdown)}
