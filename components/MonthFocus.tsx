@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MONTH_NAMES, WEEKDAYS, Task, ColorKey } from '../types';
+import { MONTH_NAMES, WEEKDAYS, WEEKDAY_INITIALS, Task, ColorKey } from '../types';
 
 interface MonthFocusProps {
   year: number;
@@ -191,9 +191,10 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
       </div>
 
       <div className="grid grid-cols-7 border-b-2 border-black">
-        {WEEKDAYS.map(day => (
+        {WEEKDAYS.map((day, i) => (
           <div key={day} className="bg-gray-50 border-r border-gray-200 last:border-r-0 text-gray-900 text-center py-3 text-[11px] font-black uppercase tracking-widest">
-            {day}
+            <span className="hidden md:inline">{day}</span>
+            <span className="md:hidden">{WEEKDAY_INITIALS[i]}</span>
           </div>
         ))}
       </div>

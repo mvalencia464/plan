@@ -202,19 +202,19 @@ const App: React.FC = () => {
             <div className="h-6 w-px bg-gray-800 hidden md:block" />
           </div>
           
-          <nav className="flex flex-wrap items-center justify-center gap-1 md:gap-2 flex-1">
+          <nav className="flex items-center gap-1 md:gap-2 flex-1 w-full md:w-auto overflow-x-auto md:overflow-visible md:flex-wrap no-scrollbar pb-2 md:pb-0 px-1">
             <button 
               onClick={() => setView('dashboard')}
-              className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all ${view === 'dashboard' ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              className={`whitespace-nowrap px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all shrink-0 ${view === 'dashboard' ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               Dashboard
             </button>
-            <div className="w-px h-4 bg-gray-800 mx-1 hidden md:block" />
+            <div className="w-px h-4 bg-gray-800 mx-1 hidden md:block shrink-0" />
             {MONTH_NAMES.map((m, i) => (
               <button
                 key={m}
                 onClick={() => handleMonthClick(i)}
-                className={`px-2.5 py-1.5 text-[10px] font-black rounded uppercase tracking-tighter transition-all ${view === 'month' && activeMonth === i ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}
+                className={`whitespace-nowrap px-2.5 py-1.5 text-[10px] font-black rounded uppercase tracking-tighter transition-all shrink-0 ${view === 'month' && activeMonth === i ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-white hover:bg-white/10'}`}
               >
                 {m.substring(0, 3)}
               </button>
