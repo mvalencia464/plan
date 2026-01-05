@@ -168,7 +168,11 @@ const App: React.FC = () => {
   const handleGeneratePlan = async (theme: string) => {
     setIsGenerating(true);
     const events = await generateYearlyPlan(year, theme);
-    setPreloadedEvents(events);
+    const eventsWithIds = events.map(e => ({
+      ...e,
+      id: Math.random().toString(36).substr(2, 9)
+    }));
+    setPreloadedEvents(eventsWithIds);
     setIsGenerating(false);
     setView('strategy');
   };
@@ -339,7 +343,20 @@ const App: React.FC = () => {
               <PreloadedCalendar 
                 year={year} 
                 events={preloadedEvents}
-                onAddEvent={(e) => setPreloadedEvents(prev => [...prev, e])}
+                onAddEvent={(e) => setPreloadedEvents(prev => [...prev, { ...e, id: Math.random().toString(36).substr(2, 9) }])}
+                onUpdateEvent={(oldE, newE) => {
+                  setPreloadedEvents(prev => prev.map(e => {
+                    // Match by ID if available, otherwise fallback to exact match of properties
+                    if (e.id && oldE.id) return e.id === oldE.id ? newE : e;
+                    return (e.date === oldE.date && e.title === oldE.title && e.category === oldE.category) ? newE : e;
+                  }));
+                }}
+                onDeleteEvent={(eToDelete) => {
+                  setPreloadedEvents(prev => prev.filter(e => {
+                     if (e.id && eToDelete.id) return e.id !== eToDelete.id;
+                     return !(e.date === eToDelete.date && e.title === eToDelete.title && e.category === eToDelete.category);
+                  }));
+                }}
                 onClearEvents={() => setPreloadedEvents([])}
               />
             </div>

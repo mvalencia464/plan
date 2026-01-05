@@ -29,6 +29,7 @@ export interface RiceProject {
 }
 
 export interface PreloadedEvent {
+  id?: string;
   date: string;
   title: string;
   category: 'health' | 'work' | 'personal' | 'holiday' | 'milestone';

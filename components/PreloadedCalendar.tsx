@@ -5,15 +5,19 @@ interface PreloadedCalendarProps {
   year: number;
   events: PreloadedEvent[];
   onAddEvent?: (event: PreloadedEvent) => void;
+  onUpdateEvent?: (oldEvent: PreloadedEvent, newEvent: PreloadedEvent) => void;
+  onDeleteEvent?: (event: PreloadedEvent) => void;
   onClearEvents?: () => void;
 }
 
-const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onAddEvent, onClearEvents }) => {
+const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onAddEvent, onUpdateEvent, onDeleteEvent, onClearEvents }) => {
   const COLUMNS = 37;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<PreloadedEvent | null>(null);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventCategory, setNewEventCategory] = useState<PreloadedEvent['category']>('milestone');
+  const [newEventDate, setNewEventDate] = useState('');
 
   const getGCalLink = (event: PreloadedEvent) => {
     const date = event.date.replace(/-/g, '');
@@ -50,20 +54,46 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
   const handleDayClick = (dateStr: string) => {
     if (!onAddEvent) return;
     setSelectedDate(dateStr);
+    setEditingEvent(null);
+    setNewEventDate(dateStr);
     setNewEventTitle('');
     setNewEventCategory('milestone');
     setIsModalOpen(true);
   };
 
-  const handleSaveEvent = () => {
-    if (onAddEvent && selectedDate && newEventTitle) {
-      onAddEvent({
-        date: selectedDate,
-        title: newEventTitle,
-        category: newEventCategory,
-      });
-      setIsModalOpen(false);
+  const handleEditClick = (event: PreloadedEvent) => {
+    setEditingEvent(event);
+    setSelectedDate(event.date);
+    setNewEventDate(event.date);
+    setNewEventTitle(event.title);
+    setNewEventCategory(event.category);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = (event: PreloadedEvent) => {
+    if (onDeleteEvent && window.confirm(`Are you sure you want to delete "${event.title}"?`)) {
+        onDeleteEvent(event);
     }
+  };
+
+  const handleSaveEvent = () => {
+    if (!newEventTitle || !newEventDate) return;
+
+    if (editingEvent && onUpdateEvent) {
+        onUpdateEvent(editingEvent, {
+            ...editingEvent,
+            date: newEventDate,
+            title: newEventTitle,
+            category: newEventCategory,
+        });
+    } else if (onAddEvent) {
+        onAddEvent({
+            date: newEventDate,
+            title: newEventTitle,
+            category: newEventCategory,
+        });
+    }
+    setIsModalOpen(false);
   };
 
   const renderDayInitials = () => {
@@ -138,8 +168,26 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
                       {hasEvent && (
                         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white shadow-2xl rounded-md border border-gray-100 p-3 z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity" onClick={(e) => e.stopPropagation()}>
                           {dayEvents.map((e, idx) => (
-                            <div key={idx} className="mb-3 last:mb-0">
-                              <span className="font-black uppercase text-[7px] block text-blue-600 mb-0.5 tracking-widest">{e.category}</span>
+                            <div key={idx} className="mb-3 last:mb-0 group/event">
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="font-black uppercase text-[7px] text-blue-600 tracking-widest">{e.category}</span>
+                                <div className="flex gap-1 opacity-0 group-hover/event:opacity-100 transition-opacity">
+                                    <button 
+                                        onClick={() => handleEditClick(e)}
+                                        className="text-gray-400 hover:text-blue-500"
+                                        title="Edit"
+                                    >
+                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDeleteClick(e)}
+                                        className="text-gray-400 hover:text-red-500"
+                                        title="Delete"
+                                    >
+                                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                </div>
+                              </div>
                               <span className="text-[10px] text-gray-900 font-bold block mb-2">{e.title}</span>
                               <a 
                                 href={getGCalLink(e)}
@@ -232,14 +280,25 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
         </div>
       </div>
 
-      {/* Add Event Modal */}
+      {/* Add/Edit Event Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm border border-gray-100">
-            <h3 className="text-lg font-black uppercase tracking-tight mb-4">Add Strategy Event</h3>
-            <p className="text-xs text-gray-500 mb-4 font-mono">Date: {selectedDate}</p>
+            <h3 className="text-lg font-black uppercase tracking-tight mb-4">
+                {editingEvent ? 'Edit Strategy Event' : 'Add Strategy Event'}
+            </h3>
             
             <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Date</label>
+                <input 
+                  type="date" 
+                  value={newEventDate}
+                  onChange={(e) => setNewEventDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                />
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Event Title</label>
                 <input 
@@ -277,7 +336,7 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
               </button>
               <button 
                 onClick={handleSaveEvent}
-                disabled={!newEventTitle.trim()}
+                disabled={!newEventTitle.trim() || !newEventDate}
                 className="flex-1 px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest rounded hover:bg-gray-800 transition-colors disabled:opacity-50"
               >
                 Save
