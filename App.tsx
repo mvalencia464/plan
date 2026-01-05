@@ -237,7 +237,7 @@ const App: React.FC = () => {
     setColorKeys([...colorKeys, newKey]);
     setActiveKeyId(newKey.id);
     setView('dashboard');
-    alert(`"${p.name}" has been added to your War Map Key! You can now drag on the calendar to highlight its timeframe.`);
+    alert(`"${p.name}" has been added to your Stoke Planner Key! You can now drag on the calendar to highlight its timeframe.`);
   };
 
   return (
@@ -247,7 +247,7 @@ const App: React.FC = () => {
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center gap-4">
           <div className="flex items-center gap-6">
             <h1 className="text-xl font-black uppercase tracking-tighter cursor-pointer" onClick={() => setView('dashboard')}>
-              WAR MAP <span className="text-gray-500 font-light">{year}</span>
+              STOKE PLANNER <span className="text-gray-500 font-light">{year}</span>
             </h1>
             <div className="h-6 w-px bg-gray-800 hidden md:block" />
           </div>
@@ -455,7 +455,7 @@ const App: React.FC = () => {
 
       <footer className="py-12 text-center no-print opacity-20 hover:opacity-100 transition-opacity">
         <p className="text-[10px] text-gray-900 font-black uppercase tracking-[0.8em]">
-          Stoke War Map &bull; Strategic Yearly Planner
+          Stoke Planner &bull; Strategic Yearly Planner
         </p>
       </footer>
     </div>

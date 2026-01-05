@@ -21,18 +21,18 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
 
   const getGCalLink = (event: PreloadedEvent) => {
     const date = event.date.replace(/-/g, '');
-    const title = encodeURIComponent(`[War Map] ${event.title}`);
-    const details = encodeURIComponent(`Strategic Milestone from your Preloaded Year Strategy.\nCategory: ${event.category}`);
+    const title = encodeURIComponent(`[Stoke Planner] ${event.title}`);
+    const details = encodeURIComponent(`Strategic Milestone from your Stoke Planner Strategy.\nCategory: ${event.category}`);
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${date}/${date}&details=${details}`;
   };
 
   const exportAllToICal = () => {
-    let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Stoke War Map//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
+    let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Stoke Planner//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
     
     events.forEach(e => {
       const date = e.date.replace(/-/g, '');
       icsContent += "BEGIN:VEVENT\n";
-      icsContent += `SUMMARY:[War Map Strategy] ${e.title}\n`;
+      icsContent += `SUMMARY:[Stoke Planner Strategy] ${e.title}\n`;
       icsContent += `DESCRIPTION:Category: ${e.category}\n`;
       icsContent += `DTSTART;VALUE=DATE:${date}\n`;
       icsContent += `DTEND;VALUE=DATE:${date}\n`;
@@ -45,7 +45,7 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
-    link.setAttribute('download', `War_Map_Preloaded_${year}.ics`);
+    link.setAttribute('download', `Stoke_Planner_Preloaded_${year}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

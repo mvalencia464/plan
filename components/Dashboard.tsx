@@ -33,7 +33,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, []);
 
   const exportToICal = () => {
-    let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Stoke War Map//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
+    let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Stoke Planner//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
     
     colorKeys.forEach(key => {
       if (key.startDate && key.endDate && key.label) {
@@ -43,7 +43,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         const end = endDateObj.toISOString().split('T')[0].replace(/-/g, '');
         
         icsContent += "BEGIN:VEVENT\n";
-        icsContent += `SUMMARY:[War Map] ${key.label}\n`;
+        icsContent += `SUMMARY:[Stoke Planner] ${key.label}\n`;
         icsContent += `DTSTART;VALUE=DATE:${start}\n`;
         icsContent += `DTEND;VALUE=DATE:${end}\n`;
         icsContent += "TRANSP:TRANSPARENT\n";
@@ -56,7 +56,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
-    link.setAttribute('download', `War_Map_Strategy_${year}.ics`);
+    link.setAttribute('download', `Stoke_Planner_Strategy_${year}.ics`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -68,7 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const endDateObj = new Date(key.endDate);
     endDateObj.setDate(endDateObj.getDate() + 1);
     const end = endDateObj.toISOString().split('T')[0].replace(/-/g, '');
-    const title = encodeURIComponent(`[War Map] ${key.label}`);
+    const title = encodeURIComponent(`[Stoke Planner] ${key.label}`);
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}`;
   };
 
@@ -207,7 +207,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     <div className="flex flex-col xl:flex-row gap-8" onMouseUp={onMouseUp}>
       <div className="flex-1">
         <h2 className="text-3xl font-black text-center mb-8 uppercase tracking-[0.3em] text-gray-800">
-          {year} Strategic War Map
+          {year} Strategic Stoke Planner
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {MONTH_NAMES.map((_, i) => (
