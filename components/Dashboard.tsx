@@ -153,7 +153,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           {MONTH_NAMES[monthIdx]}
         </div>
         <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-          {['S','M','T','W','T','F','S'].map((d, i) => (
+          {['M','T','W','T','F','S','S'].map((d, i) => (
             <div key={i} className="text-center text-[8px] text-gray-400 font-medium py-0.5">
               {d}
             </div>
