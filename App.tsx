@@ -228,10 +228,22 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             {/* Auth Button */}
             {session ? (
-               <div className="flex items-center gap-2">
-                 <span className="text-[10px] text-gray-400 hidden md:inline-block">
-                    {session.user.email}
-                 </span>
+               <div className="flex items-center gap-3">
+                 {session.user.user_metadata.avatar_url ? (
+                    <img 
+                      src={session.user.user_metadata.avatar_url} 
+                      alt="User Avatar" 
+                      className="w-8 h-8 rounded-full border border-gray-700"
+                      title={session.user.email} 
+                    />
+                 ) : (
+                    <div 
+                      className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-white font-bold border border-gray-700"
+                      title={session.user.email}
+                    >
+                      {session.user.email?.charAt(0).toUpperCase()}
+                    </div>
+                 )}
                  <button 
                    onClick={handleLogout}
                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"
