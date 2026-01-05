@@ -246,9 +246,12 @@ const App: React.FC = () => {
       <header className="no-print bg-black text-white sticky top-0 z-[60] shadow-lg">
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center gap-4">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-black uppercase tracking-tighter cursor-pointer" onClick={() => setView('dashboard')}>
-              STOKE PLANNER <span className="text-gray-500 font-light">{year}</span>
-            </h1>
+          <div 
+            onClick={() => { setView('dashboard'); setSelectedMonth(null); }}
+            className="text-xl font-black tracking-tighter cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            WAR MAP <span className="text-gray-500 font-light">{year}</span>
+          </div>
             <div className="h-6 w-px bg-gray-800 hidden md:block" />
           </div>
           
