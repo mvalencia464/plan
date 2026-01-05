@@ -139,10 +139,14 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSession(null);
-    // Optional: Clear local state on logout
-    // setTasksByDate({});
-    // setColorKeys(INITIAL_KEYS);
-    // ...
+    setTasksByDate({});
+    setColorKeys(INITIAL_KEYS);
+    setPreloadedEvents([]);
+    setRiceProjects([]);
+    localStorage.removeItem('war_map_tasks');
+    localStorage.removeItem('war_map_keys');
+    localStorage.removeItem('war_map_events');
+    localStorage.removeItem('war_map_rice');
   };
 
   const handleUpdateTasks = (date: string, tasks: Task[]) => {
