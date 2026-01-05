@@ -88,7 +88,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const onMouseDown = (dateStr: string) => {
-    if (!activeKeyId) return;
+    // Allow drag start even without activeKeyId to support "drag to create"
     setDragStart(dateStr);
     setDragCurrent(dateStr);
   };
@@ -100,15 +100,29 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const onMouseUp = () => {
-    if (activeKeyId && dragStart && dragCurrent) {
+    if (dragStart && dragCurrent) {
       const s = dragStart < dragCurrent ? dragStart : dragCurrent;
       const e = dragStart < dragCurrent ? dragCurrent : dragStart;
       
-      onUpdateKeys(colorKeys.map(k => k.id === activeKeyId ? { 
-        ...k, 
-        startDate: s, 
-        endDate: e 
-      } : k));
+      if (activeKeyId) {
+        // Update existing key
+        onUpdateKeys(colorKeys.map(k => k.id === activeKeyId ? { 
+          ...k, 
+          startDate: s, 
+          endDate: e 
+        } : k));
+      } else {
+        // Create new key
+        const newKey: ColorKey = {
+          id: Math.random().toString(36).substr(2, 9),
+          label: 'New Initiative',
+          color: PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class,
+          startDate: s,
+          endDate: e
+        };
+        onUpdateKeys([...colorKeys, newKey]);
+        setActiveKeyId(newKey.id);
+      }
     }
     setDragStart(null);
     setDragCurrent(null);
