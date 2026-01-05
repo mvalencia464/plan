@@ -149,6 +149,48 @@ const App: React.FC = () => {
     localStorage.removeItem('war_map_rice');
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0 || !session) return;
+    
+    const file = event.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    try {
+      // 1. Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // 2. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // 3. Update User Metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { custom_avatar_url: publicUrl }
+      });
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // 4. Update local session to reflect change immediately
+      const { data: { session: newSession } } = await supabase.auth.refreshSession();
+      setSession(newSession);
+
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      alert('Error uploading avatar. Please ensure a public "avatars" bucket exists in your Supabase project.');
+    }
+  };
+
   const handleUpdateTasks = (date: string, tasks: Task[]) => {
     setTasksByDate(prev => ({
       ...prev,
@@ -233,21 +275,33 @@ const App: React.FC = () => {
             {/* Auth Button */}
             {session ? (
                <div className="flex items-center gap-3">
-                 {session.user.user_metadata.avatar_url || session.user.user_metadata.picture ? (
-                    <img 
-                      src={session.user.user_metadata.avatar_url || session.user.user_metadata.picture} 
-                      alt="User Avatar" 
-                      className="w-8 h-8 rounded-full border border-gray-700"
-                      title={session.user.email} 
-                    />
-                 ) : (
-                    <div 
-                      className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-white font-bold border border-gray-700"
-                      title={session.user.email}
-                    >
-                      {session.user.email?.charAt(0).toUpperCase()}
-                    </div>
-                 )}
+                 <label className="relative group cursor-pointer">
+                   <input 
+                     type="file" 
+                     className="hidden" 
+                     accept="image/*"
+                     onChange={handleAvatarUpload}
+                   />
+                   {session.user.user_metadata.custom_avatar_url || session.user.user_metadata.avatar_url || session.user.user_metadata.picture ? (
+                      <img 
+                        src={session.user.user_metadata.custom_avatar_url || session.user.user_metadata.avatar_url || session.user.user_metadata.picture} 
+                        alt="User Avatar" 
+                        referrerPolicy="no-referrer"
+                        className="w-8 h-8 rounded-full border border-gray-700 object-cover group-hover:opacity-75 transition-opacity"
+                        title="Click to upload custom avatar" 
+                      />
+                   ) : (
+                      <div 
+                        className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-white font-bold border border-gray-700 group-hover:bg-gray-700 transition-colors"
+                        title="Click to upload custom avatar"
+                      >
+                        {session.user.email?.charAt(0).toUpperCase()}
+                      </div>
+                   )}
+                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full pointer-events-none">
+                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                   </div>
+                 </label>
                  <button 
                    onClick={handleLogout}
                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"

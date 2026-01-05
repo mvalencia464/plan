@@ -80,9 +80,17 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const getDayColor = (dateStr: string) => {
-    if (activeKeyId && dragStart && dragCurrent && isDateInRange(dateStr, dragStart, dragCurrent)) {
-      return colorKeys.find(k => k.id === activeKeyId)?.color || 'bg-blue-200';
+    // 1. Dragging: Show preview color
+    if (dragStart && dragCurrent && isDateInRange(dateStr, dragStart, dragCurrent)) {
+      if (activeKeyId) {
+        // Editing existing key
+        return colorKeys.find(k => k.id === activeKeyId)?.color || 'bg-blue-200';
+      } else {
+        // Creating new key - preview the next color
+        return PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class;
+      }
     }
+    // 2. Static: Show saved color
     const activeKey = colorKeys.find(key => isDateInRange(dateStr, key.startDate, key.endDate));
     return activeKey ? activeKey.color : null;
   };
@@ -111,6 +119,8 @@ const Dashboard: React.FC<DashboardProps> = ({
           startDate: s, 
           endDate: e 
         } : k));
+        // Auto-deselect after moving/resizing
+        setActiveKeyId(null);
       } else {
         // Create new key
         const newKey: ColorKey = {
@@ -121,7 +131,8 @@ const Dashboard: React.FC<DashboardProps> = ({
           endDate: e
         };
         onUpdateKeys([...colorKeys, newKey]);
-        setActiveKeyId(newKey.id);
+        // Do NOT set active - auto-deselect behavior
+        setActiveKeyId(null);
       }
     }
     setDragStart(null);
@@ -229,7 +240,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div 
               key={key.id} 
               onClick={() => setActiveKeyId(activeKeyId === key.id ? null : key.id)}
-              className={`p-5 space-y-3 group cursor-pointer transition-all duration-200 ${activeKeyId === key.id ? 'bg-blue-50 ring-2 ring-inset ring-blue-200' : 'hover:bg-gray-50'}`}
+              className={`p-3 space-y-2 group cursor-pointer transition-all duration-200 ${activeKeyId === key.id ? 'bg-blue-50 ring-2 ring-inset ring-blue-200' : 'hover:bg-gray-50'}`}
             >
               <div className="flex items-center gap-3 relative">
                 <div 
