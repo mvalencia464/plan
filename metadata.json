@@ -1,0 +1,5 @@
+{
+  "name": "Stoke Planner Year",
+  "description": "A minimalist, aesthetically pleasing horizontal calendar generator that aligns days of the week vertically, allowing for theme-based planning and 'preloading' your year with AI-generated insights.",
+  "requestFramePermissions": []
+}
