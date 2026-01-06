@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MONTH_NAMES, WEEKDAY_INITIALS, PreloadedEvent } from '../types';
+import { supabase } from '../services/supabaseClient';
 
 interface PreloadedCalendarProps {
   year: number;
@@ -8,9 +9,10 @@ interface PreloadedCalendarProps {
   onUpdateEvent?: (oldEvent: PreloadedEvent, newEvent: PreloadedEvent) => void;
   onDeleteEvent?: (event: PreloadedEvent) => void;
   onClearEvents?: () => void;
+  userId?: string;
 }
 
-const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onAddEvent, onUpdateEvent, onDeleteEvent, onClearEvents }) => {
+const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onAddEvent, onUpdateEvent, onDeleteEvent, onClearEvents, userId }) => {
   const COLUMNS = 37;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -19,6 +21,9 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
   const [newEventCategory, setNewEventCategory] = useState<PreloadedEvent['category']>('milestone');
   const [newEventDate, setNewEventDate] = useState('');
 
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
+
   const getGCalLink = (event: PreloadedEvent) => {
     const date = event.date.replace(/-/g, '');
     const title = encodeURIComponent(`[Stoke Planner] ${event.title}`);
@@ -26,7 +31,7 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${date}/${date}&details=${details}`;
   };
 
-  const exportAllToICal = () => {
+  const generateICSContent = () => {
     let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Stoke Planner//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
     
     events.forEach(e => {
@@ -41,7 +46,11 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
     });
 
     icsContent += "END:VCALENDAR";
+    return icsContent;
+  };
 
+  const exportAllToICal = () => {
+    const icsContent = generateICSContent();
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
@@ -49,6 +58,49 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const publishToWeb = async () => {
+    if (!userId) {
+      alert('Please sign in to publish your calendar.');
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      const icsContent = generateICSContent();
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const fileName = `${userId}/strategic_milestones_${year}.ics`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('calendars')
+        .upload(fileName, blob, {
+          contentType: 'text/calendar',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('calendars')
+        .getPublicUrl(fileName);
+
+      setCalendarUrl(publicUrl);
+    } catch (error: any) {
+      console.error('Error publishing calendar:', error);
+      alert(`Error publishing calendar: ${error.message}`);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (calendarUrl) {
+      navigator.clipboard.writeText(calendarUrl);
+      alert('Calendar URL copied to clipboard! You can now subscribe in Google Calendar.');
+    }
   };
 
   const handleDayClick = (dateStr: string) => {
@@ -225,27 +277,70 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
             <p className="text-sm md:text-xl text-gray-400 font-medium tracking-tight italic">
               "A fool with a plan can beat a genius without a plan."
             </p>
-            <div className="mt-4 flex gap-4 no-print">
-              <button 
-                onClick={exportAllToICal}
-                disabled={events.length === 0}
-                className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-all disabled:opacity-30 active:scale-95"
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
-                Export Map (.ics)
-              </button>
-              
-              {onClearEvents && events.length > 0 && (
+            <div className="mt-4 flex gap-4 no-print flex-col items-start">
+              <div className="flex gap-4">
                 <button 
-                  onClick={() => {
-                    if (window.confirm('Are you sure you want to clear all events from the calendar?')) {
-                      onClearEvents();
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-white text-red-500 border border-red-200 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all active:scale-95"
+                  onClick={publishToWeb} 
+                  title="Publish & Subscribe (Webcal)"
+                  disabled={isPublishing || events.length === 0}
+                  className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-30 ${isPublishing ? 'cursor-wait' : ''}`}
                 >
-                   Clear Map
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M16,5V11H21V5M10,11H15V5H10M16,18H21V12H16M10,18H15V12H10M4,18H9V12H4M4,11H9V5H4V11Z"/></svg>
+                  Publish & Subscribe
                 </button>
+
+                <button 
+                  onClick={exportAllToICal}
+                  disabled={events.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-all disabled:opacity-30 active:scale-95"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
+                  Export Map (.ics)
+                </button>
+                
+                {onClearEvents && events.length > 0 && (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to clear all events from the calendar?')) {
+                        onClearEvents();
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-white text-red-500 border border-red-200 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all active:scale-95"
+                  >
+                     Clear Map
+                  </button>
+                )}
+              </div>
+
+               {/* URL Display Area */}
+              {calendarUrl && (
+                <div className="bg-gray-50 p-3 border border-gray-100 rounded-lg w-full max-w-lg mt-2 animate-in fade-in slide-in-from-top-2">
+                  <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Calendar Published!</p>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      readOnly 
+                      value={calendarUrl} 
+                      className="flex-1 text-[10px] bg-white border border-gray-200 p-1.5 rounded text-gray-600 focus:outline-none"
+                    />
+                    <button 
+                      onClick={copyToClipboard}
+                      className="p-1.5 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+                      title="Copy URL"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                    </button>
+                    <button 
+                      onClick={() => setCalendarUrl(null)}
+                      className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Close"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                  <p className="text-[8px] text-gray-400 mt-1.5 leading-tight">
+                    Paste this URL into Google Calendar via "Add calendar" &gt; "From URL" to subscribe.
+                  </p>
+                </div>
               )}
             </div>
           </div>

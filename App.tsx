@@ -402,6 +402,7 @@ const App: React.FC = () => {
                 onUpdateKeys={setColorKeys}
                 activeKeyId={activeKeyId}
                 setActiveKeyId={setActiveKeyId}
+                userId={session?.user.id}
               />
             </div>
           )}
@@ -440,6 +441,7 @@ const App: React.FC = () => {
                   }));
                 }}
                 onClearEvents={() => setPreloadedEvents([])}
+                userId={session?.user.id}
               />
             </div>
           )}

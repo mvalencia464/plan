@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MONTH_NAMES, ColorKey, PRESET_COLORS } from '../types';
+import { supabase } from '../services/supabaseClient';
 
 interface DashboardProps {
   year: number;
@@ -10,15 +11,19 @@ interface DashboardProps {
   onUpdateKeys: (keys: ColorKey[]) => void;
   activeKeyId: string | null;
   setActiveKeyId: (id: string | null) => void;
+  userId?: string;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId 
+  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, userId
 }) => {
   const [dragStart, setDragStart] = useState<string | null>(null);
   const [dragCurrent, setDragCurrent] = useState<string | null>(null);
   const [openColorPicker, setOpenColorPicker] = useState<string | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -32,7 +37,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const exportToICal = () => {
+  const generateICSContent = () => {
     let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Stoke Planner//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
     
     colorKeys.forEach(key => {
@@ -52,7 +57,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
 
     icsContent += "END:VCALENDAR";
+    return icsContent;
+  };
 
+  const exportToICal = () => {
+    const icsContent = generateICSContent();
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
@@ -60,6 +69,49 @@ const Dashboard: React.FC<DashboardProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const publishToWeb = async () => {
+    if (!userId) {
+      alert('Please sign in to publish your calendar.');
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      const icsContent = generateICSContent();
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const fileName = `${userId}/war_map_${year}.ics`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('calendars')
+        .upload(fileName, blob, {
+          contentType: 'text/calendar',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('calendars')
+        .getPublicUrl(fileName);
+
+      setCalendarUrl(publicUrl);
+    } catch (error: any) {
+      console.error('Error publishing calendar:', error);
+      alert(`Error publishing calendar: ${error.message}`);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (calendarUrl) {
+      navigator.clipboard.writeText(calendarUrl);
+      alert('Calendar URL copied to clipboard! You can now subscribe in Google Calendar.');
+    }
   };
 
   const getGCalLink = (key: ColorKey) => {
@@ -231,17 +283,62 @@ const Dashboard: React.FC<DashboardProps> = ({
             <span>War Map Strategy</span>
             <span className="text-[7px] opacity-50 font-medium normal-case tracking-normal">Plot blocks by dragging on calendar</span>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 items-center">
+            {/* Publish / Subscribe Button */}
+            <button 
+              onClick={publishToWeb} 
+              title="Publish & Subscribe (Webcal)"
+              disabled={isPublishing}
+              className={`flex items-center gap-1.5 px-2 py-1 bg-blue-600 text-white rounded text-[9px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all active:scale-95 ${isPublishing ? 'opacity-50 cursor-wait' : ''}`}
+            >
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M16,5V11H21V5M10,11H15V5H10M16,18H21V12H16M10,18H15V12H10M4,18H9V12H4M4,11H9V5H4V11Z"/></svg>
+              Publish
+            </button>
+            
+            <div className="w-px h-4 bg-gray-700 mx-1" />
+
             <button 
               onClick={exportToICal} 
               title="Download Strategy Calendar (.ics)"
-              className="text-blue-400 hover:text-blue-300 transition-colors p-1 active:scale-90"
+              className="text-gray-400 hover:text-white transition-colors p-1 active:scale-90"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
             </button>
             <button onClick={handleAddKey} className="hover:text-green-400 text-xl transition-colors p-1 active:scale-90">+</button>
           </div>
         </div>
+        
+        {/* URL Display Area */}
+        {calendarUrl && (
+          <div className="bg-gray-100 p-3 border-b border-gray-200">
+            <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Calendar Published!</p>
+            <div className="flex items-center gap-2">
+              <input 
+                readOnly 
+                value={calendarUrl} 
+                className="flex-1 text-[10px] bg-white border border-gray-200 p-1.5 rounded text-gray-600 focus:outline-none"
+              />
+              <button 
+                onClick={copyToClipboard}
+                className="p-1.5 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+                title="Copy URL"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+              </button>
+              <button 
+                onClick={() => setCalendarUrl(null)}
+                className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                title="Close"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <p className="text-[8px] text-gray-400 mt-1.5 leading-tight">
+              Paste this URL into Google Calendar via "Add calendar" &gt; "From URL" to subscribe.
+            </p>
+          </div>
+        )}
+
         <div className="divide-y divide-gray-100 overflow-y-auto max-h-[70vh]">
           {colorKeys.map(key => (
             <div 
