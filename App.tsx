@@ -442,34 +442,32 @@ const App: React.FC = () => {
 
             <div className="h-6 w-px bg-gray-800 mx-2 hidden md:block" />
 
-            {!isReadOnly && (
-              <div className="relative" ref={dropdownRef}>
-                <button 
-                  onClick={() => setShowToolsDropdown(!showToolsDropdown)}
-                  className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all flex items-center gap-2 ${view === 'strategy' || view === 'rice' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-                >
-                  Tools
-                  <svg className={`w-3 h-3 transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
-                </button>
-                
-                {showToolsDropdown && (
-                  <div className="absolute right-0 mt-2 w-48 bg-black border border-gray-800 rounded shadow-2xl py-2 z-[70] animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button 
-                      onClick={() => { setView('rice'); setShowToolsDropdown(false); }}
-                      className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
-                    >
-                      RICE Scoring
-                    </button>
-                    <button 
-                      onClick={() => { setView('strategy'); setShowToolsDropdown(false); }}
-                      className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
-                    >
-                      Preload Strategy
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="relative" ref={dropdownRef}>
+              <button 
+                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all flex items-center gap-2 ${view === 'strategy' || view === 'rice' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              >
+                Tools
+                <svg className={`w-3 h-3 transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              
+              {showToolsDropdown && (
+                <div className="absolute right-0 mt-2 w-48 bg-black border border-gray-800 rounded shadow-2xl py-2 z-[70] animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button 
+                    onClick={() => { setView('rice'); setShowToolsDropdown(false); }}
+                    className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
+                  >
+                    RICE Scoring
+                  </button>
+                  <button 
+                    onClick={() => { setView('strategy'); setShowToolsDropdown(false); }}
+                    className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
+                  >
+                    Preload Strategy
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               <select 
@@ -499,7 +497,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Global Controls - Restricted to Strategy View only */}
-      {view === 'strategy' && (
+      {view === 'strategy' && !isReadOnly && (
         <Controls 
           year={year} 
           years={years} 
