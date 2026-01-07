@@ -564,6 +564,7 @@ const App: React.FC = () => {
                 }}
                 onClearEvents={() => setPreloadedEvents([])}
                 userId={session?.user.id}
+                readOnly={isReadOnly}
               />
             </div>
           )}
@@ -574,6 +575,7 @@ const App: React.FC = () => {
                 projects={riceProjects} 
                 onUpdateProjects={setRiceProjects} 
                 onDeployToKey={handleDeployProject}
+                readOnly={isReadOnly}
               />
             </div>
           )}

@@ -6,9 +6,10 @@ interface RiceToolProps {
   projects: RiceProject[];
   onUpdateProjects: (projects: RiceProject[]) => void;
   onDeployToKey: (project: RiceProject) => void;
+  readOnly?: boolean;
 }
 
-const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeployToKey }) => {
+const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeployToKey, readOnly = false }) => {
   const calculateScore = (p: Partial<RiceProject>) => {
     const reach = p.reach || 0;
     const impact = p.impact || 0;
@@ -63,12 +64,14 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
           >
             Sort by Score
           </button>
-          <button 
-            onClick={handleAddProject}
-            className="px-6 py-2 bg-white text-black rounded-md text-[10px] font-black uppercase hover:bg-gray-200 transition-colors"
-          >
-            Add Project +
-          </button>
+          {!readOnly && (
+            <button 
+              onClick={handleAddProject}
+              className="px-6 py-2 bg-white text-black rounded-md text-[10px] font-black uppercase hover:bg-gray-200 transition-colors"
+            >
+              Add Project +
+            </button>
+          )}
         </div>
       </div>
 
@@ -82,7 +85,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
               <th className="px-4 py-4 text-[11px] font-black uppercase text-gray-400">Confidence (%)</th>
               <th className="px-4 py-4 text-[11px] font-black uppercase text-gray-400">Effort (Months)</th>
               <th className="px-6 py-4 text-[11px] font-black uppercase text-black text-right">RICE Score</th>
-              <th className="px-6 py-4 text-[11px] font-black uppercase text-gray-400 text-center">Actions</th>
+              {!readOnly && <th className="px-6 py-4 text-[11px] font-black uppercase text-gray-400 text-center">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -92,6 +95,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                   <input 
                     className="w-full bg-transparent border-none focus:ring-0 font-bold text-gray-800 p-0"
                     value={p.name}
+                    readOnly={readOnly}
                     onChange={(e) => handleUpdate(p.id, { name: e.target.value })}
                   />
                 </td>
@@ -100,6 +104,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                     type="number"
                     className="w-20 bg-gray-50 border-gray-200 rounded text-xs font-bold px-2 py-1"
                     value={p.reach}
+                    readOnly={readOnly}
                     onChange={(e) => handleUpdate(p.id, { reach: Number(e.target.value) })}
                   />
                 </td>
@@ -107,6 +112,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                   <select 
                     className="bg-gray-50 border-gray-200 rounded text-xs font-bold px-2 py-1"
                     value={p.impact}
+                    disabled={readOnly}
                     onChange={(e) => handleUpdate(p.id, { impact: Number(e.target.value) })}
                   >
                     <option value={0.25}>0.25 (Minimal)</option>
@@ -124,6 +130,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                       max="100"
                       className="accent-black w-24"
                       value={p.confidence}
+                      disabled={readOnly}
                       onChange={(e) => handleUpdate(p.id, { confidence: Number(e.target.value) })}
                     />
                     <span className="text-xs font-black w-8">{p.confidence}%</span>
@@ -135,6 +142,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                     step="0.25"
                     className="w-16 bg-gray-50 border-gray-200 rounded text-xs font-bold px-2 py-1"
                     value={p.effort}
+                    readOnly={readOnly}
                     onChange={(e) => handleUpdate(p.id, { effort: Number(e.target.value) })}
                   />
                 </td>
@@ -143,27 +151,29 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                     {p.score.toLocaleString()}
                   </span>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {!readOnly && (
+                  <td className="px-6 py-4">
+                    <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => onDeployToKey(p)}
+                          className="p-1 text-gray-400 hover:text-black transition-colors"
+                          title="Plot on Stoke Planner"
+                        >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </button>
                       <button 
-                        onClick={() => onDeployToKey(p)}
-                        className="p-1 text-gray-400 hover:text-black transition-colors"
-                        title="Plot on Stoke Planner"
+                        onClick={() => handleRemove(p.id)}
+                        className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded"
                       >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </button>
-                    <button 
-                      onClick={() => handleRemove(p.id)}
-                      className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -171,7 +181,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
         {projects.length === 0 && (
           <div className="py-20 text-center">
             <p className="text-gray-300 font-black uppercase tracking-[0.2em] text-sm">No projects prioritized yet</p>
-            <button onClick={handleAddProject} className="mt-4 text-black font-bold underline text-xs">Start Scoring Projects</button>
+            {!readOnly && <button onClick={handleAddProject} className="mt-4 text-black font-bold underline text-xs">Start Scoring Projects</button>}
           </div>
         )}
       </div>
