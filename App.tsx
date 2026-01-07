@@ -26,6 +26,9 @@ const App: React.FC = () => {
   const [isCollaborationModalOpen, setIsCollaborationModalOpen] = useState(false);
   const [sharedPlans, setSharedPlans] = useState<{ owner_id: string, owner_email: string }[]>([]);
   const [currentPlanOwnerId, setCurrentPlanOwnerId] = useState<string | null>(null);
+  
+  // Public View State
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   // Persistent State
   const [tasksByDate, setTasksByDate] = useState<Record<string, any>>(() => {
@@ -50,6 +53,16 @@ const App: React.FC = () => {
 
   // Auth & Data Sync Effects
   useEffect(() => {
+    // Check for public link first
+    const params = new URLSearchParams(window.location.search);
+    const publicId = params.get('p');
+
+    if (publicId) {
+      loadPublicData(publicId);
+      setIsReadOnly(true);
+      return; // Skip auth flow if public
+    }
+
     // 1. Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -79,6 +92,28 @@ const App: React.FC = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const loadPublicData = async (publicLinkId: string) => {
+    const { data, error } = await supabase
+      .from('war_map_data')
+      .select('*')
+      .eq('public_link_id', publicLinkId)
+      .eq('is_public', true)
+      .single();
+
+    if (error) {
+      console.error('Error loading public data:', error);
+      alert('Plan not found or not public.');
+      return;
+    }
+
+    if (data) {
+      if (data.tasks_by_date) setTasksByDate(data.tasks_by_date);
+      if (data.color_keys) setColorKeys(data.color_keys);
+      if (data.preloaded_events) setPreloadedEvents(data.preloaded_events);
+      if (data.rice_projects) setRiceProjects(data.rice_projects);
+    }
+  };
 
   const loadSharedPlans = async (email?: string) => {
     if (!email) return;
@@ -119,7 +154,7 @@ const App: React.FC = () => {
   };
 
   const saveData = async () => {
-    if (!session || !currentPlanOwnerId) return;
+    if (!session || !currentPlanOwnerId || isReadOnly) return;
     
     const { error } = await supabase
       .from('war_map_data')
@@ -137,6 +172,8 @@ const App: React.FC = () => {
 
   // Debounced Save
   useEffect(() => {
+    if (isReadOnly) return; // Do not auto-save in read-only mode
+
     const timeout = setTimeout(() => {
       if (session) saveData();
       // Also keep local storage in sync as backup
@@ -317,7 +354,19 @@ const App: React.FC = () => {
 
           <div className="flex items-center gap-4">
             {/* Auth Button */}
-            {session ? (
+            {isReadOnly ? (
+              <div className="flex items-center gap-3">
+                 <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-gray-800 text-white rounded cursor-default">
+                   Read Only View
+                 </span>
+                 <a 
+                   href="/"
+                   className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"
+                 >
+                   Create Your Own
+                 </a>
+              </div>
+            ) : session ? (
                <div className="flex items-center gap-3">
                  {sharedPlans.length > 0 && (
                    <div className="relative group">
@@ -393,32 +442,34 @@ const App: React.FC = () => {
 
             <div className="h-6 w-px bg-gray-800 mx-2 hidden md:block" />
 
-            <div className="relative" ref={dropdownRef}>
-              <button 
-                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
-                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all flex items-center gap-2 ${view === 'strategy' || view === 'rice' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-              >
-                Tools
-                <svg className={`w-3 h-3 transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
-              </button>
-              
-              {showToolsDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-black border border-gray-800 rounded shadow-2xl py-2 z-[70] animate-in fade-in slide-in-from-top-2 duration-200">
-                  <button 
-                    onClick={() => { setView('rice'); setShowToolsDropdown(false); }}
-                    className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
-                  >
-                    RICE Scoring
-                  </button>
-                  <button 
-                    onClick={() => { setView('strategy'); setShowToolsDropdown(false); }}
-                    className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
-                  >
-                    Preload Strategy
-                  </button>
-                </div>
-              )}
-            </div>
+            {!isReadOnly && (
+              <div className="relative" ref={dropdownRef}>
+                <button 
+                  onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+                  className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all flex items-center gap-2 ${view === 'strategy' || view === 'rice' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+                >
+                  Tools
+                  <svg className={`w-3 h-3 transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                
+                {showToolsDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-black border border-gray-800 rounded shadow-2xl py-2 z-[70] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button 
+                      onClick={() => { setView('rice'); setShowToolsDropdown(false); }}
+                      className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
+                    >
+                      RICE Scoring
+                    </button>
+                    <button 
+                      onClick={() => { setView('strategy'); setShowToolsDropdown(false); }}
+                      className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
+                    >
+                      Preload Strategy
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <select 
@@ -472,6 +523,7 @@ const App: React.FC = () => {
                 activeKeyId={activeKeyId}
                 setActiveKeyId={setActiveKeyId}
                 userId={session?.user.id}
+                readOnly={isReadOnly}
               />
             </div>
           )}
@@ -486,6 +538,7 @@ const App: React.FC = () => {
                 onUpdateTasks={handleUpdateTasks}
                 onUpdateMeta={handleUpdateMeta}
                 activeKeyId={activeKeyId}
+                readOnly={isReadOnly}
               />
             </div>
           )}

@@ -12,10 +12,11 @@ interface DashboardProps {
   activeKeyId: string | null;
   setActiveKeyId: (id: string | null) => void;
   userId?: string;
+  readOnly?: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, userId
+  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, userId, readOnly = false
 }) => {
   const [dragStart, setDragStart] = useState<string | null>(null);
   const [dragCurrent, setDragCurrent] = useState<string | null>(null);
@@ -148,6 +149,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const onMouseDown = (dateStr: string) => {
+    if (readOnly) return;
     // Allow drag start even without activeKeyId to support "drag to create"
     setDragStart(dateStr);
     setDragCurrent(dateStr);
@@ -283,29 +285,31 @@ const Dashboard: React.FC<DashboardProps> = ({
             <span>War Map Strategy</span>
             <span className="text-[7px] opacity-50 font-medium normal-case tracking-normal">Plot blocks by dragging on calendar</span>
           </div>
-          <div className="flex gap-2 items-center">
-            {/* Publish / Subscribe Button */}
-            <button 
-              onClick={publishToWeb} 
-              title="Publish & Subscribe (Webcal)"
-              disabled={isPublishing}
-              className={`flex items-center gap-1.5 px-2 py-1 bg-blue-600 text-white rounded text-[9px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all active:scale-95 ${isPublishing ? 'opacity-50 cursor-wait' : ''}`}
-            >
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M16,5V11H21V5M10,11H15V5H10M16,18H21V12H16M10,18H15V12H10M4,18H9V12H4M4,11H9V5H4V11Z"/></svg>
-              Publish
-            </button>
-            
-            <div className="w-px h-4 bg-gray-700 mx-1" />
+          {!readOnly && (
+            <div className="flex gap-2 items-center">
+              {/* Publish / Subscribe Button */}
+              <button 
+                onClick={publishToWeb} 
+                title="Publish & Subscribe (Webcal)"
+                disabled={isPublishing}
+                className={`flex items-center gap-1.5 px-2 py-1 bg-blue-600 text-white rounded text-[9px] font-black uppercase tracking-wider hover:bg-blue-500 transition-all active:scale-95 ${isPublishing ? 'opacity-50 cursor-wait' : ''}`}
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M16,5V11H21V5M10,11H15V5H10M16,18H21V12H16M10,18H15V12H10M4,18H9V12H4M4,11H9V5H4V11Z"/></svg>
+                Publish
+              </button>
+              
+              <div className="w-px h-4 bg-gray-700 mx-1" />
 
-            <button 
-              onClick={exportToICal} 
-              title="Download Strategy Calendar (.ics)"
-              className="text-gray-400 hover:text-white transition-colors p-1 active:scale-90"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
-            </button>
-            <button onClick={handleAddKey} className="hover:text-green-400 text-xl transition-colors p-1 active:scale-90">+</button>
-          </div>
+              <button 
+                onClick={exportToICal} 
+                title="Download Strategy Calendar (.ics)"
+                className="text-gray-400 hover:text-white transition-colors p-1 active:scale-90"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
+              </button>
+              <button onClick={handleAddKey} className="hover:text-green-400 text-xl transition-colors p-1 active:scale-90">+</button>
+            </div>
+          )}
         </div>
         
         {/* URL Display Area */}
@@ -343,7 +347,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           {colorKeys.map(key => (
             <div 
               key={key.id} 
-              onClick={() => setActiveKeyId(activeKeyId === key.id ? null : key.id)}
+              onClick={() => !readOnly && setActiveKeyId(activeKeyId === key.id ? null : key.id)}
               className={`p-3 space-y-2 group cursor-pointer transition-all duration-200 ${activeKeyId === key.id ? 'bg-blue-50 ring-2 ring-inset ring-blue-200' : 'hover:bg-gray-50'}`}
             >
               <div className="flex items-center gap-3 relative">
@@ -351,12 +355,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                   className={`w-7 h-7 rounded shadow-inner border border-black/5 cursor-pointer relative ${key.color} flex items-center justify-center`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setOpenColorPicker(openColorPicker === key.id ? null : key.id);
+                    if (!readOnly) setOpenColorPicker(openColorPicker === key.id ? null : key.id);
                   }}
                 >
                   <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
                   
-                  {openColorPicker === key.id && (
+                  {openColorPicker === key.id && !readOnly && (
                     <div 
                       ref={pickerRef}
                       className="absolute top-full left-0 mt-2 p-2 bg-white border border-gray-200 shadow-2xl rounded-lg grid grid-cols-5 gap-1.5 z-[100] w-[160px]"
@@ -379,38 +383,42 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <input 
                   className="text-[11px] font-black text-gray-800 bg-transparent border-none focus:ring-0 w-full p-0 uppercase tracking-tight placeholder:text-gray-300"
                   value={key.label}
+                  readOnly={readOnly}
                   placeholder="Initiative Title..."
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => handleKeyUpdate(key.id, { label: e.target.value })}
                 />
 
-                <div className="flex gap-1.5 shrink-0">
-                  {key.startDate && (
-                    <a 
-                      href={getGCalLink(key) || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Sync this block to Google Calendar"
-                      className="text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all p-1 active:scale-90"
-                      onClick={(e) => e.stopPropagation()}
+                {!readOnly && (
+                  <div className="flex gap-1.5 shrink-0">
+                    {key.startDate && (
+                      <a 
+                        href={getGCalLink(key) || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Sync this block to Google Calendar"
+                        className="text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-all p-1 active:scale-90"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M17,12H12V17H17V12Z"/></svg>
+                      </a>
+                    )}
+                    <button 
+                      onClick={(e) => handleRemoveKey(e, key.id)}
+                      title="Delete Key"
+                      className="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1 active:scale-90"
                     >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19,19H5V8H19M16,1V3H8V1H6V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3H18V1M17,12H12V17H17V12Z"/></svg>
-                    </a>
-                  )}
-                  <button 
-                    onClick={(e) => handleRemoveKey(e, key.id)}
-                    title="Delete Key"
-                    className="text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1 active:scale-90"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                </div>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                )}
               </div>
               
               <div className="flex gap-2 items-center" onClick={(e) => e.stopPropagation()}>
                 <input 
                   type="date" 
                   value={key.startDate || ''} 
+                  readOnly={readOnly}
                   onChange={(e) => handleKeyUpdate(key.id, { startDate: e.target.value })}
                   className="text-[10px] bg-gray-50 border border-gray-100 rounded px-2 py-1 w-full focus:ring-1 focus:ring-black focus:bg-white transition-colors"
                 />
@@ -418,6 +426,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <input 
                   type="date" 
                   value={key.endDate || ''} 
+                  readOnly={readOnly}
                   onChange={(e) => handleKeyUpdate(key.id, { endDate: e.target.value })}
                   className="text-[10px] bg-gray-50 border border-gray-100 rounded px-2 py-1 w-full focus:ring-1 focus:ring-black focus:bg-white transition-colors"
                 />

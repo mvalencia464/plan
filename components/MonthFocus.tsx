@@ -10,10 +10,11 @@ interface MonthFocusProps {
   onUpdateTasks: (date: string, tasks: Task[]) => void;
   onUpdateMeta: (monthIndex: number, type: 'objectives' | 'notes', value: string) => void;
   activeKeyId: string | null;
+  readOnly?: boolean;
 }
 
 const MonthFocus: React.FC<MonthFocusProps> = ({ 
-  year, monthIndex, tasksByDate, colorKeys, onUpdateTasks, onUpdateMeta, activeKeyId 
+  year, monthIndex, tasksByDate, colorKeys, onUpdateTasks, onUpdateMeta, activeKeyId, readOnly = false
 }) => {
   const [editingDay, setEditingDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
@@ -214,9 +215,9 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
           return (
             <div 
               key={i} 
-              onClick={() => isDay && !editingTaskId && setEditingDay(dateStr)}
+              onClick={() => !readOnly && isDay && !editingTaskId && setEditingDay(dateStr)}
               onDragOver={handleDragOver}
-              onDrop={(e) => isDay && handleDropOnDay(e, dateStr)}
+              onDrop={(e) => !readOnly && isDay && handleDropOnDay(e, dateStr)}
               className={`min-h-[120px] md:min-h-[160px] p-2 transition-all relative group flex flex-col ${
                 isDay ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hidden md:flex' // Hide empty cells on mobile
               } ${isToday ? 'ring-4 ring-blue-500 ring-inset z-10' : ''}`}
@@ -247,16 +248,18 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                     {dayTasks.map(task => (
                       <div 
                         key={task.id} 
-                        draggable={!editingTaskId}
-                        onDragStart={(e) => handleDragStart(e, dateStr, task.id)}
-                        onDrop={(e) => handleDropOnTask(e, dateStr, task.id)}
+                        draggable={!readOnly && !editingTaskId}
+                        onDragStart={(e) => !readOnly && handleDragStart(e, dateStr, task.id)}
+                        onDrop={(e) => !readOnly && handleDropOnTask(e, dateStr, task.id)}
                         onDoubleClick={(e) => {
                           e.stopPropagation();
-                          setEditingTaskId(task.id);
-                          setEditingTaskText(task.text);
+                          if (!readOnly) {
+                            setEditingTaskId(task.id);
+                            setEditingTaskText(task.text);
+                          }
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className={`flex items-center gap-1.5 group/task relative py-1 px-1.5 rounded border border-transparent hover:border-black/5 hover:bg-white/80 transition-all cursor-grab active:cursor-grabbing ${draggedTaskId === task.id ? 'opacity-30' : ''} ${editingTaskId === task.id ? 'bg-white shadow-sm ring-1 ring-black/5 z-20' : ''}`}
+                        className={`flex items-center gap-1.5 group/task relative py-1 px-1.5 rounded border border-transparent hover:border-black/5 hover:bg-white/80 transition-all ${!readOnly ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedTaskId === task.id ? 'opacity-30' : ''} ${editingTaskId === task.id ? 'bg-white shadow-sm ring-1 ring-black/5 z-20' : ''}`}
                       >
                         {editingTaskId === task.id ? (
                           <input 
@@ -274,35 +277,38 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                             <input 
                               type="checkbox" 
                               checked={task.completed}
+                              disabled={readOnly}
                               onChange={() => toggleTask(dateStr, task.id)}
-                              className="h-3.5 w-3.5 rounded-sm border-gray-400 text-black focus:ring-black cursor-pointer z-10 shrink-0"
+                              className="h-3.5 w-3.5 rounded-sm border-gray-400 text-black focus:ring-black cursor-pointer z-10 shrink-0 disabled:opacity-50"
                             />
                             <span className={`text-[11px] leading-tight flex-1 transition-all ${task.completed ? 'line-through text-gray-400' : 'text-gray-800 font-bold'}`}>
                               {task.text}
                             </span>
                             
-                            <div className="flex gap-0.5 opacity-0 group-hover/task:opacity-100 transition-all">
-                              <button 
-                                onClick={() => copyTaskToNextDay(dateStr, task)}
-                                title="Duplicate"
-                                className="p-1 hover:bg-green-50 text-green-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                              </button>
-                              <button 
-                                onClick={() => removeTask(dateStr, task.id)}
-                                title="Delete"
-                                className="p-1 hover:bg-red-50 text-red-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-                              </button>
-                            </div>
+                            {!readOnly && (
+                              <div className="flex gap-0.5 opacity-0 group-hover/task:opacity-100 transition-all">
+                                <button 
+                                  onClick={() => copyTaskToNextDay(dateStr, task)}
+                                  title="Duplicate"
+                                  className="p-1 hover:bg-green-50 text-green-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                                </button>
+                                <button 
+                                  onClick={() => removeTask(dateStr, task.id)}
+                                  title="Delete"
+                                  className="p-1 hover:bg-red-50 text-red-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
                     ))}
 
-                    {editingDay === dateStr ? (
+                    {editingDay === dateStr && !readOnly ? (
                       <div className="mt-1" onClick={(e) => e.stopPropagation()}>
                         <input
                           ref={inputRef}
@@ -316,7 +322,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                         />
                       </div>
                     ) : (
-                      !editingTaskId && (
+                      !editingTaskId && !readOnly && (
                         <div className="h-6 flex items-center justify-center opacity-0 group-hover:opacity-40 text-[8px] font-black uppercase text-gray-400 mt-2 cursor-pointer border border-dashed border-gray-200 rounded pointer-events-none">
                           + Task
                         </div>
@@ -356,6 +362,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
             className="w-full h-32 text-sm font-medium border-none focus:ring-0 resize-none placeholder:text-gray-200 italic leading-relaxed bg-gray-50/30 rounded p-2"
             placeholder="Key targets for this month..."
             value={tasksByDate[`meta-${monthIndex}`]?.objectives || ""}
+            readOnly={readOnly}
             onChange={(e) => onUpdateMeta(monthIndex, 'objectives', e.target.value)}
           />
         </div>
@@ -365,6 +372,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
             className="w-full h-[calc(100%-2rem)] text-sm font-medium border-none focus:ring-0 resize-none placeholder:text-gray-200 italic leading-relaxed bg-gray-50/30 rounded p-2"
             placeholder="Reflection, lessons, outcomes..."
             value={tasksByDate[`meta-${monthIndex}`]?.notes || ""}
+            readOnly={readOnly}
             onChange={(e) => onUpdateMeta(monthIndex, 'notes', e.target.value)}
           />
         </div>

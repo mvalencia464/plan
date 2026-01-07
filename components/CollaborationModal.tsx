@@ -13,12 +13,56 @@ const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose
   const [newEmail, setNewEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Public Access State
+  const [isPublic, setIsPublic] = useState(false);
+  const [publicLinkId, setPublicLinkId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       loadCollaborators();
+      loadPublicStatus();
     }
   }, [isOpen]);
+
+  const loadPublicStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('war_map_data')
+      .select('is_public, public_link_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (data) {
+      setIsPublic(data.is_public || false);
+      setPublicLinkId(data.public_link_id);
+    }
+  };
+
+  const togglePublicAccess = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    const newStatus = !isPublic;
+    // Optimistic update
+    setIsPublic(newStatus); 
+
+    const { error } = await supabase
+      .from('war_map_data')
+      .update({ is_public: newStatus })
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('Error updating public status:', error);
+      setIsPublic(!newStatus); // Revert
+      setError('Failed to update public status');
+    } else {
+        // If we just enabled it and didn't have an ID, reload to get it (though it should be default generated)
+        if (newStatus && !publicLinkId) loadPublicStatus();
+    }
+  };
 
   const loadCollaborators = async () => {
     setIsLoading(true);
@@ -123,6 +167,41 @@ const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose
           </form>
           
           {error && <p className="text-red-500 text-xs mb-4">{error}</p>}
+
+          {/* Public Access Section */}
+          <div className="mb-8 p-4 bg-gray-50 border border-gray-100 rounded">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-800">Public Access</h3>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Anyone with the link can view (read-only).
+                </p>
+              </div>
+              <button 
+                onClick={togglePublicAccess}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${isPublic ? 'bg-green-500' : 'bg-gray-200'}`}
+              >
+                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            
+            {isPublic && publicLinkId && (
+              <div className="mt-3 flex items-center gap-2">
+                <input 
+                  readOnly 
+                  value={`${window.location.origin}/?p=${publicLinkId}`} 
+                  className="flex-1 text-[10px] bg-white border border-gray-200 p-2 rounded text-gray-600 focus:outline-none select-all"
+                />
+                <button 
+                  onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?p=${publicLinkId}`)}
+                  className="p-2 bg-black text-white rounded hover:bg-gray-800 transition-colors"
+                  title="Copy URL"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-3">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Current Collaborators</h3>
