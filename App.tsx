@@ -7,7 +7,8 @@ import MonthFocus from './components/MonthFocus';
 import PreloadedCalendar from './components/PreloadedCalendar';
 import Controls from './components/Controls';
 import RiceTool from './components/RiceTool';
-import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS } from './types';
+import CollaborationModal from './components/CollaborationModal';
+import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS, Collaborator } from './types';
 import { generateYearlyPlan } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -20,8 +21,11 @@ const App: React.FC = () => {
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  // Auth State
+  // Auth & Collaboration State
   const [session, setSession] = useState<Session | null>(null);
+  const [isCollaborationModalOpen, setIsCollaborationModalOpen] = useState(false);
+  const [sharedPlans, setSharedPlans] = useState<{ owner_id: string, owner_email: string }[]>([]);
+  const [currentPlanOwnerId, setCurrentPlanOwnerId] = useState<string | null>(null);
 
   // Persistent State
   const [tasksByDate, setTasksByDate] = useState<Record<string, any>>(() => {
@@ -49,7 +53,11 @@ const App: React.FC = () => {
     // 1. Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) loadUserData(session.user.id);
+      if (session) {
+        setCurrentPlanOwnerId(session.user.id);
+        loadUserData(session.user.id);
+        loadSharedPlans(session.user.email);
+      }
     });
 
     // 2. Listen for changes
@@ -58,12 +66,31 @@ const App: React.FC = () => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        loadUserData(session.user.id);
+        // Only reset if we don't have a plan selected or it's a new login
+        if (!currentPlanOwnerId) {
+            setCurrentPlanOwnerId(session.user.id);
+            loadUserData(session.user.id);
+        }
+        loadSharedPlans(session.user.email);
+      } else {
+        handleLogout();
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const loadSharedPlans = async (email?: string) => {
+    if (!email) return;
+    const { data, error } = await supabase
+        .from('plan_collaborators')
+        .select('owner_id, owner_email')
+        .eq('collaborator_email', email);
+    
+    if (data) {
+        setSharedPlans(data);
+    }
+  };
 
   const loadUserData = async (userId: string) => {
     const { data, error } = await supabase
@@ -82,16 +109,22 @@ const App: React.FC = () => {
       if (data.color_keys) setColorKeys(data.color_keys);
       if (data.preloaded_events) setPreloadedEvents(data.preloaded_events);
       if (data.rice_projects) setRiceProjects(data.rice_projects);
+    } else {
+      // If no data exists for this user, clear the state to show empty plan
+      setTasksByDate({});
+      setColorKeys(INITIAL_KEYS);
+      setPreloadedEvents([]);
+      setRiceProjects([]);
     }
   };
 
   const saveData = async () => {
-    if (!session) return;
+    if (!session || !currentPlanOwnerId) return;
     
     const { error } = await supabase
       .from('war_map_data')
       .upsert({
-        user_id: session.user.id,
+        user_id: currentPlanOwnerId,
         tasks_by_date: tasksByDate,
         color_keys: colorKeys,
         preloaded_events: preloadedEvents,
@@ -139,6 +172,8 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSession(null);
+    setCurrentPlanOwnerId(null);
+    setSharedPlans([]);
     setTasksByDate({});
     setColorKeys(INITIAL_KEYS);
     setPreloadedEvents([]);
@@ -147,6 +182,12 @@ const App: React.FC = () => {
     localStorage.removeItem('war_map_keys');
     localStorage.removeItem('war_map_events');
     localStorage.removeItem('war_map_rice');
+  };
+
+  const handleSwitchPlan = (ownerId: string) => {
+    setCurrentPlanOwnerId(ownerId);
+    loadUserData(ownerId);
+    setView('dashboard'); // Reset view to dashboard when switching
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,6 +319,34 @@ const App: React.FC = () => {
             {/* Auth Button */}
             {session ? (
                <div className="flex items-center gap-3">
+                 {sharedPlans.length > 0 && (
+                   <div className="relative group">
+                     <select
+                       value={currentPlanOwnerId || session.user.id}
+                       onChange={(e) => handleSwitchPlan(e.target.value)}
+                       className="appearance-none bg-gray-900 text-white text-[10px] font-bold uppercase tracking-wider pl-3 pr-8 py-1.5 rounded border border-gray-700 hover:border-gray-500 focus:outline-none cursor-pointer"
+                     >
+                       <option value={session.user.id}>My Plan</option>
+                       {sharedPlans.map(p => (
+                         <option key={p.owner_id} value={p.owner_id}>
+                           {p.owner_email}'s Plan
+                         </option>
+                       ))}
+                     </select>
+                     <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                     </div>
+                   </div>
+                 )}
+                 
+                 <button 
+                   onClick={() => setIsCollaborationModalOpen(true)}
+                   className="p-1.5 text-gray-400 hover:text-white transition-colors border border-gray-800 rounded hover:bg-gray-800"
+                   title="Share Plan"
+                 >
+                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                 </button>
+
                  <label className="relative group cursor-pointer">
                    <input 
                      type="file" 
@@ -463,6 +532,12 @@ const App: React.FC = () => {
           Stoke Planner &bull; Strategic Yearly Planner
         </p>
       </footer>
+      
+      <CollaborationModal 
+        isOpen={isCollaborationModalOpen} 
+        onClose={() => setIsCollaborationModalOpen(false)} 
+        currentUserEmail={session?.user.email}
+      />
     </div>
   );
 };

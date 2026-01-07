@@ -57,3 +57,11 @@ export const PRESET_COLORS = [
 ];
 
 export const INITIAL_KEYS: ColorKey[] = [];
+
+export interface Collaborator {
+  id: string;
+  owner_id: string;
+  owner_email: string;
+  collaborator_email: string;
+  created_at: string;
+}
