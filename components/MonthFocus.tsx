@@ -13,14 +13,14 @@ interface MonthFocusProps {
   readOnly?: boolean;
 }
 
-const MonthFocus: React.FC<MonthFocusProps> = ({ 
+const MonthFocus: React.FC<MonthFocusProps> = ({
   year, monthIndex, tasksByDate, colorKeys, onUpdateTasks, onUpdateMeta, activeKeyId, readOnly = false
 }) => {
   const [editingDay, setEditingDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTaskText, setEditingTaskText] = useState("");
-  
+
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
@@ -30,7 +30,8 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
   const firstDay = new Date(year, monthIndex, 1);
   const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   useEffect(() => {
     if (editingDay && inputRef.current) {
@@ -67,7 +68,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     if (!editingTaskText.trim()) {
       onUpdateTasks(date, currentTasks.filter(t => t.id !== editingTaskId));
     } else {
-      const updated = currentTasks.map(t => 
+      const updated = currentTasks.map(t =>
         t.id === editingTaskId ? { ...t, text: editingTaskText } : t
       );
       onUpdateTasks(date, updated);
@@ -169,15 +170,15 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
   const getDayHighlight = (dateStr: string) => {
     const activeKey = colorKeys.find(key => isDateInRange(dateStr, key.startDate, key.endDate));
     if (!activeKey) return null;
-    const baseColorClass = activeKey.color; 
-    const borderColorClass = activeKey.color.replace('bg-', 'border-'); 
+    const baseColorClass = activeKey.color;
+    const borderColorClass = activeKey.color.replace('bg-', 'border-');
     return { baseColorClass, borderColorClass };
   };
 
   const currentMonthKeys = colorKeys.filter(key => {
     if (!key.startDate || !key.endDate || !key.label.trim()) return false;
-    const start = new Date(key.startDate);
-    const end = new Date(key.endDate);
+    const start = new Date(key.startDate + 'T00:00:00');
+    const end = new Date(key.endDate + 'T00:00:00');
     const viewStart = new Date(year, monthIndex, 1);
     const viewEnd = new Date(year, monthIndex + 1, 0);
     return (start <= viewEnd && end >= viewStart);
@@ -208,26 +209,25 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
           const isToday = dateStr === todayStr;
           const dayTasks = tasksByDate[dateStr]?.tasks || [];
           const highlight = isDay ? getDayHighlight(dateStr) : null;
-          
+
           // Calculate weekday for mobile view
           const weekDayName = WEEKDAYS[i % 7];
 
           return (
-            <div 
-              key={i} 
+            <div
+              key={i}
               onClick={() => !readOnly && isDay && !editingTaskId && setEditingDay(dateStr)}
               onDragOver={handleDragOver}
               onDrop={(e) => !readOnly && isDay && handleDropOnDay(e, dateStr)}
-              className={`min-h-[120px] md:min-h-[160px] p-2 transition-all relative group flex flex-col ${
-                isDay ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hidden md:flex' // Hide empty cells on mobile
-              } ${isToday ? 'ring-4 ring-blue-500 ring-inset z-10' : ''}`}
+              className={`min-h-[120px] md:min-h-[160px] p-2 transition-all relative group flex flex-col ${isDay ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hidden md:flex' // Hide empty cells on mobile
+                } ${isToday ? 'ring-4 ring-blue-500 ring-inset z-10' : ''}`}
             >
               {isDay && (
                 <>
                   {/* Strategic Highlight Overlay - using manual very low opacity for elegance */}
                   {highlight && (
-                    <div 
-                      className={`absolute inset-0 ${highlight.baseColorClass} border-y-2 ${highlight.borderColorClass} pointer-events-none z-0`} 
+                    <div
+                      className={`absolute inset-0 ${highlight.baseColorClass} border-y-2 ${highlight.borderColorClass} pointer-events-none z-0`}
                       style={{ opacity: 0.05 }}
                     />
                   )}
@@ -246,8 +246,8 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
 
                   <div className="space-y-1 flex-1 overflow-y-auto custom-scrollbar z-10 relative">
                     {dayTasks.map(task => (
-                      <div 
-                        key={task.id} 
+                      <div
+                        key={task.id}
                         draggable={!readOnly && !editingTaskId}
                         onDragStart={(e) => !readOnly && handleDragStart(e, dateStr, task.id)}
                         onDrop={(e) => !readOnly && handleDropOnTask(e, dateStr, task.id)}
@@ -262,7 +262,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                         className={`flex items-center gap-1.5 group/task relative py-1 px-1.5 rounded border border-transparent hover:border-black/5 hover:bg-white/80 transition-all ${!readOnly ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedTaskId === task.id ? 'opacity-30' : ''} ${editingTaskId === task.id ? 'bg-white shadow-sm ring-1 ring-black/5 z-20' : ''}`}
                       >
                         {editingTaskId === task.id ? (
-                          <input 
+                          <input
                             ref={editInputRef}
                             type="text"
                             value={editingTaskText}
@@ -274,8 +274,8 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                           />
                         ) : (
                           <>
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={task.completed}
                               disabled={readOnly}
                               onChange={() => toggleTask(dateStr, task.id)}
@@ -284,17 +284,17 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                             <span className={`text-[11px] leading-tight flex-1 transition-all ${task.completed ? 'line-through text-gray-400' : 'text-gray-800 font-bold'}`}>
                               {task.text}
                             </span>
-                            
+
                             {!readOnly && (
                               <div className="flex gap-0.5 opacity-0 group-hover/task:opacity-100 transition-all">
-                                <button 
+                                <button
                                   onClick={() => copyTaskToNextDay(dateStr, task)}
                                   title="Duplicate"
                                   className="p-1 hover:bg-green-50 text-green-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => removeTask(dateStr, task.id)}
                                   title="Delete"
                                   className="p-1 hover:bg-red-50 text-red-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
@@ -356,9 +356,9 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
               <div className="text-[10px] text-gray-300 italic py-6 text-center border border-dashed border-gray-100 rounded">No initiatives overlapping this month.</div>
             )}
           </div>
-          
+
           <label className="text-[12px] font-black uppercase tracking-[0.2em] text-gray-400 block mb-4 border-b border-gray-100 pb-2 mt-8">Monthly Objectives:</label>
-          <textarea 
+          <textarea
             className="w-full h-32 text-sm font-medium border-none focus:ring-0 resize-none placeholder:text-gray-200 italic leading-relaxed bg-gray-50/30 rounded p-2"
             placeholder="Key targets for this month..."
             value={tasksByDate[`meta-${monthIndex}`]?.objectives || ""}
@@ -368,7 +368,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
         </div>
         <div className="p-8">
           <label className="text-[12px] font-black uppercase tracking-[0.2em] text-gray-400 block mb-4 border-b border-gray-100 pb-2">War Logs / Review:</label>
-          <textarea 
+          <textarea
             className="w-full h-[calc(100%-2rem)] text-sm font-medium border-none focus:ring-0 resize-none placeholder:text-gray-200 italic leading-relaxed bg-gray-50/30 rounded p-2"
             placeholder="Reflection, lessons, outcomes..."
             value={tasksByDate[`meta-${monthIndex}`]?.notes || ""}
