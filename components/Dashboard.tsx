@@ -281,6 +281,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       id: Math.random().toString(36).substr(2, 9),
       label: project.name,
       color: PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class,
+      startDate: project.startDate,
+      endDate: project.endDate
     };
     onUpdateKeys([...colorKeys, newKey]);
     setActiveKeyId(newKey.id);

@@ -26,6 +26,8 @@ export interface RiceProject {
   confidence: number; // 0 to 100 (%)
   effort: number; // man-months
   score: number;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
 }
 
 export interface PreloadedEvent {

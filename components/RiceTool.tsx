@@ -136,22 +136,37 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                     <span className="text-xs font-black w-8">{p.confidence}%</span>
                   </div>
                 </td>
-                <td className="px-4 py-4">
-                  <input 
-                    type="number"
-                    step="0.25"
-                    className="w-16 bg-gray-50 border-gray-200 rounded text-xs font-bold px-2 py-1"
-                    value={p.effort}
-                    readOnly={readOnly}
-                    onChange={(e) => handleUpdate(p.id, { effort: Number(e.target.value) })}
-                  />
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <span className={`text-lg font-black ${index === 0 ? 'text-blue-600' : 'text-black'}`}>
-                    {p.score.toLocaleString()}
-                  </span>
-                </td>
-                {!readOnly && (
+                                  <td className="p-3">
+                                    <input
+                                      type="number"
+                                      value={project.effort}
+                                      onChange={(e) => updateProject(project.id, 'effort', parseFloat(e.target.value))}
+                                      className="w-16 p-1 border rounded text-center text-[10px] font-bold"
+                                      min="0.1"
+                                      step="0.1"
+                                    />
+                                  </td>
+                                  <td className="p-3">
+                                    <div className="flex flex-col gap-1">
+                                      <input 
+                                        type="date" 
+                                        value={project.startDate || ''} 
+                                        onChange={(e) => updateProject(project.id, 'startDate', e.target.value)}
+                                        className="w-24 p-1 border rounded text-[9px] font-medium text-gray-500"
+                                        title="Start Date"
+                                      />
+                                      <input 
+                                        type="date" 
+                                        value={project.endDate || ''} 
+                                        onChange={(e) => updateProject(project.id, 'endDate', e.target.value)}
+                                        className="w-24 p-1 border rounded text-[9px] font-medium text-gray-500"
+                                        title="End Date"
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="p-3 font-black text-blue-600 text-sm">
+                                    {Math.round(project.score)}
+                                  </td>                {!readOnly && (
                   <td className="px-6 py-4">
                     <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
