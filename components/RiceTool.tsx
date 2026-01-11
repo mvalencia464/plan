@@ -85,6 +85,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
               <th className="px-4 py-4 text-[11px] font-black uppercase text-gray-400">Confidence (%)</th>
               <th className="px-4 py-4 text-[11px] font-black uppercase text-gray-400">Effort (Months)</th>
               <th className="px-6 py-4 text-[11px] font-black uppercase text-black text-right">RICE Score</th>
+              <th className="px-4 py-4 text-[11px] font-black uppercase text-gray-400">Schedule</th>
               {!readOnly && <th className="px-6 py-4 text-[11px] font-black uppercase text-gray-400 text-center">Actions</th>}
             </tr>
           </thead>
@@ -136,37 +137,37 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                     <span className="text-xs font-black w-8">{p.confidence}%</span>
                   </div>
                 </td>
-                                  <td className="p-3">
-                                    <input
-                                      type="number"
-                                      value={project.effort}
-                                      onChange={(e) => updateProject(project.id, 'effort', parseFloat(e.target.value))}
-                                      className="w-16 p-1 border rounded text-center text-[10px] font-bold"
-                                      min="0.1"
-                                      step="0.1"
-                                    />
-                                  </td>
-                                  <td className="p-3">
-                                    <div className="flex flex-col gap-1">
-                                      <input 
-                                        type="date" 
-                                        value={project.startDate || ''} 
-                                        onChange={(e) => updateProject(project.id, 'startDate', e.target.value)}
-                                        className="w-24 p-1 border rounded text-[9px] font-medium text-gray-500"
-                                        title="Start Date"
-                                      />
-                                      <input 
-                                        type="date" 
-                                        value={project.endDate || ''} 
-                                        onChange={(e) => updateProject(project.id, 'endDate', e.target.value)}
-                                        className="w-24 p-1 border rounded text-[9px] font-medium text-gray-500"
-                                        title="End Date"
-                                      />
-                                    </div>
-                                  </td>
-                                  <td className="p-3 font-black text-blue-600 text-sm">
-                                    {Math.round(project.score)}
-                                  </td>                {!readOnly && (
+                <td className="px-4 py-4">
+                  <input
+                    type="number"
+                    value={p.effort}
+                    onChange={(e) => handleUpdate(p.id, { effort: parseFloat(e.target.value) })}
+                    className="w-20 bg-gray-50 border-gray-200 rounded text-xs font-bold px-2 py-1 text-center"
+                    min="0.1"
+                    step="0.1"
+                  />
+                </td>
+                <td className="px-6 py-4 text-right">
+                   <span className="text-xl font-black text-blue-600">{Math.round(p.score)}</span>
+                </td>
+                <td className="px-4 py-4">
+                    <div className="flex flex-col gap-1.5">
+                      <input 
+                        type="date" 
+                        value={p.startDate || ''} 
+                        onChange={(e) => handleUpdate(p.id, { startDate: e.target.value })}
+                        className="w-full bg-gray-50 border-gray-200 rounded text-[9px] font-bold px-1 py-1"
+                        title="Start Date"
+                      />
+                      <input 
+                        type="date" 
+                        value={p.endDate || ''} 
+                        onChange={(e) => handleUpdate(p.id, { endDate: e.target.value })}
+                        className="w-full bg-gray-50 border-gray-200 rounded text-[9px] font-bold px-1 py-1"
+                        title="End Date"
+                      />
+                    </div>
+                </td>                {!readOnly && (
                   <td className="px-6 py-4">
                     <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
