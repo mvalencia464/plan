@@ -12,11 +12,12 @@ interface DashboardProps {
   activeKeyId: string | null;
   setActiveKeyId: (id: string | null) => void;
   userId?: string;
+  planId?: string;
   readOnly?: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
-  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, userId, readOnly = false
+  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, userId, planId, readOnly = false
 }) => {
   const [dragStart, setDragStart] = useState<string | null>(null);
   const [dragCurrent, setDragCurrent] = useState<string | null>(null);
@@ -86,7 +87,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     try {
       const icsContent = generateICSContent();
       const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-      const fileName = `${userId}/war_map_${year}.ics`;
+      // Use planId if available for unique filenames per plan, otherwise fallback to user/year
+      const fileName = planId 
+        ? `${userId}/${planId}_${year}.ics` 
+        : `${userId}/war_map_${year}.ics`;
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage

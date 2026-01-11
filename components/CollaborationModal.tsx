@@ -6,9 +6,10 @@ interface CollaborationModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUserEmail?: string;
+  currentPlanId?: string;
 }
 
-const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose, currentUserEmail }) => {
+const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose, currentUserEmail, currentPlanId }) => {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [newEmail, setNewEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,13 +27,12 @@ const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose
   }, [isOpen]);
 
   const loadPublicStatus = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!currentPlanId) return;
 
     const { data, error } = await supabase
       .from('war_map_data')
       .select('is_public, public_link_id')
-      .eq('user_id', user.id)
+      .eq('id', currentPlanId)
       .single();
 
     if (data) {
@@ -42,8 +42,7 @@ const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose
   };
 
   const togglePublicAccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!currentPlanId) return;
     
     const newStatus = !isPublic;
     // Optimistic update
@@ -52,7 +51,7 @@ const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose
     const { error } = await supabase
       .from('war_map_data')
       .update({ is_public: newStatus })
-      .eq('user_id', user.id);
+      .eq('id', currentPlanId);
 
     if (error) {
       console.error('Error updating public status:', error);
@@ -65,11 +64,12 @@ const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose
   };
 
   const loadCollaborators = async () => {
+    if (!currentPlanId) return;
     setIsLoading(true);
     const { data, error } = await supabase
       .from('plan_collaborators')
       .select('*')
-      .eq('owner_id', (await supabase.auth.getUser()).data.user?.id);
+      .eq('plan_id', currentPlanId);
 
     if (error) {
       console.error('Error loading collaborators:', error);
@@ -95,6 +95,7 @@ const CollaborationModal: React.FC<CollaborationModalProps> = ({ isOpen, onClose
           owner_id: user.id,
           owner_email: currentUserEmail,
           collaborator_email: newEmail.trim().toLowerCase(),
+          plan_id: currentPlanId,
         });
 
       if (error) {

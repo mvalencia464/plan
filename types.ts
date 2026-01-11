@@ -64,4 +64,17 @@ export interface Collaborator {
   owner_email: string;
   collaborator_email: string;
   created_at: string;
+  plan_id?: string;
+}
+
+export interface Plan {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  tasks_by_date: Record<string, any>;
+  color_keys: ColorKey[];
+  preloaded_events: PreloadedEvent[];
+  rice_projects: RiceProject[];
 }

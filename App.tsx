@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseClient';
@@ -8,7 +7,7 @@ import PreloadedCalendar from './components/PreloadedCalendar';
 import Controls from './components/Controls';
 import RiceTool from './components/RiceTool';
 import CollaborationModal from './components/CollaborationModal';
-import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS, Collaborator } from './types';
+import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS, Collaborator, Plan } from './types';
 import { generateYearlyPlan } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -24,32 +23,21 @@ const App: React.FC = () => {
   // Auth & Collaboration State
   const [session, setSession] = useState<Session | null>(null);
   const [isCollaborationModalOpen, setIsCollaborationModalOpen] = useState(false);
-  const [sharedPlans, setSharedPlans] = useState<{ owner_id: string, owner_email: string }[]>([]);
-  const [currentPlanOwnerId, setCurrentPlanOwnerId] = useState<string | null>(null);
   
+  // Plans State
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
+  const [sharedPlans, setSharedPlans] = useState<Plan[]>([]);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(false);
+
   // Public View State
   const [isReadOnly, setIsReadOnly] = useState(false);
 
-  // Persistent State
-  const [tasksByDate, setTasksByDate] = useState<Record<string, any>>(() => {
-    const saved = localStorage.getItem('war_map_tasks');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  const [colorKeys, setColorKeys] = useState<ColorKey[]>(() => {
-    const saved = localStorage.getItem('war_map_keys');
-    return saved ? JSON.parse(saved) : INITIAL_KEYS;
-  });
-
-  const [preloadedEvents, setPreloadedEvents] = useState<PreloadedEvent[]>(() => {
-    const saved = localStorage.getItem('war_map_events');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [riceProjects, setRiceProjects] = useState<RiceProject[]>(() => {
-    const saved = localStorage.getItem('war_map_rice');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Active Plan Data State (Derived/Synced with currentPlan)
+  const [tasksByDate, setTasksByDate] = useState<Record<string, any>>({});
+  const [colorKeys, setColorKeys] = useState<ColorKey[]>(INITIAL_KEYS);
+  const [preloadedEvents, setPreloadedEvents] = useState<PreloadedEvent[]>([]);
+  const [riceProjects, setRiceProjects] = useState<RiceProject[]>([]);
 
   // Auth & Data Sync Effects
   useEffect(() => {
@@ -67,8 +55,7 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        setCurrentPlanOwnerId(session.user.id);
-        loadUserData(session.user.id);
+        loadUserPlans(session.user.id);
         loadSharedPlans(session.user.email);
       }
     });
@@ -79,12 +66,11 @@ const App: React.FC = () => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        // Only reset if we don't have a plan selected or it's a new login
-        if (!currentPlanOwnerId) {
-            setCurrentPlanOwnerId(session.user.id);
-            loadUserData(session.user.id);
+        // Only reload if we don't have plans loaded or it's a completely new user
+        if (plans.length === 0 || (currentPlan && currentPlan.user_id !== session.user.id)) {
+            loadUserPlans(session.user.id);
+            loadSharedPlans(session.user.email);
         }
-        loadSharedPlans(session.user.email);
       } else {
         handleLogout();
       }
@@ -92,6 +78,21 @@ const App: React.FC = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Update local state when currentPlan changes
+  useEffect(() => {
+    if (currentPlan) {
+      setTasksByDate(currentPlan.tasks_by_date || {});
+      setColorKeys(currentPlan.color_keys || INITIAL_KEYS);
+      setPreloadedEvents(currentPlan.preloaded_events || []);
+      setRiceProjects(currentPlan.rice_projects || []);
+    } else {
+      setTasksByDate({});
+      setColorKeys(INITIAL_KEYS);
+      setPreloadedEvents([]);
+      setRiceProjects([]);
+    }
+  }, [currentPlan]);
 
   const loadPublicData = async (publicLinkId: string) => {
     const { data, error } = await supabase
@@ -108,83 +109,178 @@ const App: React.FC = () => {
     }
 
     if (data) {
+      // For public view, we just set the local state directly, no "currentPlan" object needed really,
+      // but to keep consistency we could fake one, or just set the state like we do.
       if (data.tasks_by_date) setTasksByDate(data.tasks_by_date);
       if (data.color_keys) setColorKeys(data.color_keys);
       if (data.preloaded_events) setPreloadedEvents(data.preloaded_events);
       if (data.rice_projects) setRiceProjects(data.rice_projects);
+    }
+  };
+
+  const loadUserPlans = async (userId: string) => {
+    setIsLoadingPlans(true);
+    const { data, error } = await supabase
+      .from('war_map_data')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading plans:', error);
+      setIsLoadingPlans(false);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      setPlans(data as Plan[]);
+      // Default to the first plan (most recently updated)
+      setCurrentPlan(data[0] as Plan);
+    } else {
+      // No plans exist, create a default one
+      await createDefaultPlan(userId);
+    }
+    setIsLoadingPlans(false);
+  };
+
+  const createDefaultPlan = async (userId: string) => {
+    const defaultPlan = {
+      user_id: userId,
+      name: 'My 2026 Plan',
+      tasks_by_date: {},
+      color_keys: INITIAL_KEYS,
+      preloaded_events: [],
+      rice_projects: [],
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('war_map_data')
+      .insert(defaultPlan)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating default plan:', error);
+      return;
+    }
+
+    if (data) {
+      setPlans([data as Plan]);
+      setCurrentPlan(data as Plan);
+    }
+  };
+
+  const handleCreatePlan = async () => {
+    if (!session) return;
+    const name = prompt('Enter a name for your new plan (e.g., "Work 2026", "Personal"):', `New Plan ${new Date().getFullYear()}`);
+    if (!name) return;
+
+    const newPlan = {
+      user_id: session.user.id,
+      name: name,
+      tasks_by_date: {},
+      color_keys: INITIAL_KEYS,
+      preloaded_events: [],
+      rice_projects: [],
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('war_map_data')
+      .insert(newPlan)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating plan:', error);
+      alert('Failed to create plan.');
+      return;
+    }
+
+    if (data) {
+      const createdPlan = data as Plan;
+      setPlans(prev => [createdPlan, ...prev]);
+      setCurrentPlan(createdPlan);
+      setView('dashboard');
     }
   };
 
   const loadSharedPlans = async (email?: string) => {
     if (!email) return;
-    const { data, error } = await supabase
+    
+    // First get the collaboration records
+    const { data: collaborations, error: collabError } = await supabase
         .from('plan_collaborators')
-        .select('owner_id, owner_email')
+        .select('plan_id, owner_id')
         .eq('collaborator_email', email);
     
-    if (data) {
-        setSharedPlans(data);
-    }
-  };
+    if (collabError || !collaborations || collaborations.length === 0) return;
 
-  const loadUserData = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('war_map_data')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error loading data:', error);
-      return;
-    }
-
-    if (data) {
-      if (data.tasks_by_date) setTasksByDate(data.tasks_by_date);
-      if (data.color_keys) setColorKeys(data.color_keys);
-      if (data.preloaded_events) setPreloadedEvents(data.preloaded_events);
-      if (data.rice_projects) setRiceProjects(data.rice_projects);
+    // Filter out collaborations that might not have a plan_id (legacy)
+    // For legacy support (owner sharing all), we might need logic, but assuming migration:
+    const planIds = collaborations.map(c => c.plan_id).filter(id => id);
+    
+    // If we have specific plan IDs, fetch them
+    if (planIds.length > 0) {
+        const { data: plansData, error: plansError } = await supabase
+            .from('war_map_data')
+            .select('*')
+            .in('id', planIds);
+            
+        if (plansData) {
+            setSharedPlans(plansData as Plan[]);
+        }
     } else {
-      // If no data exists for this user, clear the state to show empty plan
-      setTasksByDate({});
-      setColorKeys(INITIAL_KEYS);
-      setPreloadedEvents([]);
-      setRiceProjects([]);
+        // Fallback for legacy "Owner Share" (if no plan_id in collaborations)
+        // We fetch plans owned by these owners
+        const ownerIds = collaborations.map(c => c.owner_id);
+        if (ownerIds.length > 0) {
+             const { data: plansData, error: plansError } = await supabase
+                .from('war_map_data')
+                .select('*')
+                .in('user_id', ownerIds); // Fetch ALL plans from these owners? Might be too much.
+             
+             // Ideally we only show what is explicitly shared. 
+             // If legacy was "share everything", then fetching all is correct.
+             if (plansData) {
+                 setSharedPlans(plansData as Plan[]);
+             }
+        }
     }
   };
 
   const saveData = async () => {
-    if (!session || !currentPlanOwnerId || isReadOnly) return;
+    if (!session || !currentPlan || isReadOnly) return;
+    
+    // Only save if I am the owner OR I am a collaborator (policy handles permission)
     
     const { error } = await supabase
       .from('war_map_data')
-      .upsert({
-        user_id: currentPlanOwnerId,
+      .update({
         tasks_by_date: tasksByDate,
         color_keys: colorKeys,
         preloaded_events: preloadedEvents,
         rice_projects: riceProjects,
         updated_at: new Date().toISOString(),
-      });
+      })
+      .eq('id', currentPlan.id);
 
     if (error) console.error('Error saving data:', error);
   };
 
   // Debounced Save
   useEffect(() => {
-    if (isReadOnly) return; // Do not auto-save in read-only mode
+    if (isReadOnly) return; 
 
     const timeout = setTimeout(() => {
-      if (session) saveData();
-      // Also keep local storage in sync as backup
-      localStorage.setItem('war_map_tasks', JSON.stringify(tasksByDate));
-      localStorage.setItem('war_map_keys', JSON.stringify(colorKeys));
-      localStorage.setItem('war_map_events', JSON.stringify(preloadedEvents));
-      localStorage.setItem('war_map_rice', JSON.stringify(riceProjects));
-    }, 2000); // Save after 2 seconds of inactivity
+      if (session && currentPlan) {
+        saveData();
+      }
+    }, 2000); 
 
     return () => clearTimeout(timeout);
-  }, [tasksByDate, colorKeys, preloadedEvents, riceProjects, session]);
+  }, [tasksByDate, colorKeys, preloadedEvents, riceProjects, session, currentPlan]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -209,22 +305,26 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSession(null);
-    setCurrentPlanOwnerId(null);
+    setPlans([]);
+    setCurrentPlan(null);
     setSharedPlans([]);
     setTasksByDate({});
     setColorKeys(INITIAL_KEYS);
     setPreloadedEvents([]);
     setRiceProjects([]);
-    localStorage.removeItem('war_map_tasks');
-    localStorage.removeItem('war_map_keys');
-    localStorage.removeItem('war_map_events');
-    localStorage.removeItem('war_map_rice');
   };
 
-  const handleSwitchPlan = (ownerId: string) => {
-    setCurrentPlanOwnerId(ownerId);
-    loadUserData(ownerId);
-    setView('dashboard'); // Reset view to dashboard when switching
+  const handleSwitchPlan = (planId: string) => {
+    if (planId === 'create-new') {
+        handleCreatePlan();
+        return;
+    }
+    
+    const plan = plans.find(p => p.id === planId) || sharedPlans.find(p => p.id === planId);
+    if (plan) {
+        setCurrentPlan(plan);
+        setView('dashboard');
+    }
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -325,7 +425,7 @@ const App: React.FC = () => {
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center gap-4">
           <div className="flex items-center gap-6">
           <div 
-            onClick={() => { setView('dashboard'); setSelectedMonth(null); }}
+            onClick={() => { setView('dashboard'); }}
             className="text-xl font-black tracking-tighter cursor-pointer hover:opacity-80 transition-opacity"
           >
             WAR MAP <span className="text-gray-500 font-light">{year}</span>
@@ -368,30 +468,39 @@ const App: React.FC = () => {
               </div>
             ) : session ? (
                <div className="flex items-center gap-3">
-                 {sharedPlans.length > 0 && (
-                   <div className="relative group">
-                     <select
-                       value={currentPlanOwnerId || session.user.id}
-                       onChange={(e) => handleSwitchPlan(e.target.value)}
-                       className="appearance-none bg-gray-900 text-white text-[10px] font-bold uppercase tracking-wider pl-3 pr-8 py-1.5 rounded border border-gray-700 hover:border-gray-500 focus:outline-none cursor-pointer"
-                     >
-                       <option value={session.user.id}>My Plan</option>
-                       {sharedPlans.map(p => (
-                         <option key={p.owner_id} value={p.owner_id}>
-                           {p.owner_email}'s Plan
-                         </option>
-                       ))}
-                     </select>
-                     <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
-                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                     </div>
+                 <div className="relative group">
+                   <select
+                     value={currentPlan?.id || ''}
+                     onChange={(e) => handleSwitchPlan(e.target.value)}
+                     className="appearance-none bg-gray-900 text-white text-[10px] font-bold uppercase tracking-wider pl-3 pr-8 py-1.5 rounded border border-gray-700 hover:border-gray-500 focus:outline-none cursor-pointer max-w-[150px] truncate"
+                   >
+                     <optgroup label="My Plans">
+                        {plans.map(p => (
+                           <option key={p.id} value={p.id}>
+                             {p.name || 'Untitled Plan'}
+                           </option>
+                        ))}
+                     </optgroup>
+                     {sharedPlans.length > 0 && (
+                        <optgroup label="Shared with Me">
+                           {sharedPlans.map(p => (
+                             <option key={p.id} value={p.id}>
+                               {p.name || 'Untitled Shared Plan'}
+                             </option>
+                           ))}
+                        </optgroup>
+                     )}
+                     <option value="create-new" className="text-blue-400">+ Create New Plan</option>
+                   </select>
+                   <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                    </div>
-                 )}
+                 </div>
                  
                  <button 
                    onClick={() => setIsCollaborationModalOpen(true)}
                    className="p-1.5 text-gray-400 hover:text-white transition-colors border border-gray-800 rounded hover:bg-gray-800"
-                   title="Share Plan"
+                   title="Share Current Plan"
                  >
                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                  </button>
@@ -521,6 +630,7 @@ const App: React.FC = () => {
                 activeKeyId={activeKeyId}
                 setActiveKeyId={setActiveKeyId}
                 userId={session?.user.id}
+                planId={currentPlan?.id}
                 readOnly={isReadOnly}
               />
             </div>
@@ -590,6 +700,7 @@ const App: React.FC = () => {
         isOpen={isCollaborationModalOpen} 
         onClose={() => setIsCollaborationModalOpen(false)} 
         currentUserEmail={session?.user.email}
+        currentPlanId={currentPlan?.id}
       />
     </div>
   );
