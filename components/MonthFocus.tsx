@@ -1,12 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MONTH_NAMES, WEEKDAYS, WEEKDAY_INITIALS, Task, ColorKey } from '../types';
+import { MONTH_NAMES, WEEKDAYS, WEEKDAY_INITIALS, Task, ColorKey, PreloadedEvent } from '../types';
 
 interface MonthFocusProps {
   year: number;
   monthIndex: number;
   tasksByDate: Record<string, { tasks: Task[], objectives?: string, notes?: string }>;
   colorKeys: ColorKey[];
+  preloadedEvents?: PreloadedEvent[];
   onUpdateTasks: (date: string, tasks: Task[]) => void;
   onUpdateMeta: (monthIndex: number, type: 'objectives' | 'notes', value: string) => void;
   activeKeyId: string | null;
@@ -14,7 +15,7 @@ interface MonthFocusProps {
 }
 
 const MonthFocus: React.FC<MonthFocusProps> = ({
-  year, monthIndex, tasksByDate, colorKeys, onUpdateTasks, onUpdateMeta, activeKeyId, readOnly = false
+  year, monthIndex, tasksByDate, colorKeys, preloadedEvents = [], onUpdateTasks, onUpdateMeta, activeKeyId, readOnly = false
 }) => {
   const [editingDay, setEditingDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
@@ -208,6 +209,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
           const dateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
           const isToday = dateStr === todayStr;
           const dayTasks = tasksByDate[dateStr]?.tasks || [];
+          const dayEvents = preloadedEvents.filter(e => e.date === dateStr);
           const highlight = isDay ? getDayHighlight(dateStr) : null;
 
           // Calculate weekday for mobile view
@@ -245,6 +247,21 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
                   </div>
 
                   <div className="space-y-1 flex-1 overflow-y-auto custom-scrollbar z-10 relative">
+                    {/* Preloaded Events (Strategic Meetings/Milestones) */}
+                    {dayEvents.map(evt => (
+                      <div 
+                        key={evt.id || Math.random()} 
+                        className={`flex items-start gap-1.5 py-1 px-1.5 rounded text-[10px] font-bold leading-tight mb-1 border-l-2 shadow-sm ${
+                          evt.category === 'milestone' ? 'bg-amber-50 border-amber-400 text-amber-900' : 
+                          evt.category === 'holiday' ? 'bg-purple-50 border-purple-400 text-purple-900' : 
+                          'bg-blue-50 border-blue-400 text-blue-900'
+                        }`}
+                      >
+                         <span className="opacity-70 text-[9px] mt-0.5">●</span>
+                         <span>{evt.title}</span>
+                      </div>
+                    ))}
+
                     {dayTasks.map(task => (
                       <div
                         key={task.id}

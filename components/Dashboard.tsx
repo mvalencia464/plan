@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MONTH_NAMES, ColorKey, PRESET_COLORS } from '../types';
+import { MONTH_NAMES, ColorKey, PRESET_COLORS, RiceProject } from '../types';
 import { supabase } from '../services/supabaseClient';
 
 interface DashboardProps {
@@ -11,13 +11,14 @@ interface DashboardProps {
   onUpdateKeys: (keys: ColorKey[]) => void;
   activeKeyId: string | null;
   setActiveKeyId: (id: string | null) => void;
+  riceProjects?: RiceProject[];
   userId?: string;
   planId?: string;
   readOnly?: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
-  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, userId, planId, readOnly = false
+  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, riceProjects = [], userId, planId, readOnly = false
 }) => {
   const [dragStart, setDragStart] = useState<string | null>(null);
   const [dragCurrent, setDragCurrent] = useState<string | null>(null);
@@ -275,6 +276,22 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (activeKeyId === id) setActiveKeyId(null);
   };
 
+  const handlePromoteProject = (project: RiceProject) => {
+    const newKey: ColorKey = {
+      id: Math.random().toString(36).substr(2, 9),
+      label: project.name,
+      color: PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class,
+    };
+    onUpdateKeys([...colorKeys, newKey]);
+    setActiveKeyId(newKey.id);
+  };
+
+  // Filter top projects not already in keys
+  const suggestedProjects = riceProjects
+    .filter(p => !colorKeys.some(k => k.label.toLowerCase() === p.name.toLowerCase()))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5); // Top 5 suggestions
+
   return (
     <div className="flex flex-col xl:flex-row gap-8" onMouseUp={onMouseUp}>
       <div className="flex-1">
@@ -455,6 +472,33 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           )}
         </div>
+
+        {/* Suggested Projects Section */}
+        {!readOnly && suggestedProjects.length > 0 && (
+          <div className="border-t border-gray-200 p-4 bg-gray-50/50">
+            <h4 className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+              <svg className="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+              Top RICE Initiatives
+            </h4>
+            <div className="space-y-2">
+              {suggestedProjects.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => handlePromoteProject(p)}
+                  className="w-full text-left p-2 bg-white border border-gray-200 rounded shadow-sm hover:border-blue-400 hover:shadow-md transition-all group flex justify-between items-center"
+                >
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-800 leading-tight">{p.name}</div>
+                    <div className="text-[8px] text-gray-400 font-medium">Score: {Math.round(p.score)}</div>
+                  </div>
+                  <div className="w-5 h-5 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                    <span className="text-sm leading-none pb-0.5">+</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

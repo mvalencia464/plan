@@ -629,6 +629,7 @@ const App: React.FC = () => {
                 onUpdateKeys={setColorKeys}
                 activeKeyId={activeKeyId}
                 setActiveKeyId={setActiveKeyId}
+                riceProjects={riceProjects}
                 userId={session?.user.id}
                 planId={currentPlan?.id}
                 readOnly={isReadOnly}
@@ -643,6 +644,7 @@ const App: React.FC = () => {
                 monthIndex={activeMonth} 
                 tasksByDate={tasksByDate}
                 colorKeys={colorKeys}
+                preloadedEvents={preloadedEvents}
                 onUpdateTasks={handleUpdateTasks}
                 onUpdateMeta={handleUpdateMeta}
                 activeKeyId={activeKeyId}
