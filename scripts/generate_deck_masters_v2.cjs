@@ -1,4 +1,3 @@
-
 const fs = require('fs');
 
 // --- Helper Functions & Constants ---
@@ -19,7 +18,7 @@ const riceProjects = [];
 // --- 1. Populate RICE Projects with DATES ---
 riceProjects.push(
   { 
-    id: 'rp-1', name: 'Implement BILL (Expense & AP)', 
+    id: 'rp-1', name: 'Implement Ramp (Expense & AP)', 
     reach: 100, impact: 2, confidence: 90, effort: 1.5, score: (100*2*0.9)/1.5,
     startDate: '2026-02-16', endDate: '2026-03-09' 
   },
@@ -67,8 +66,8 @@ riceProjects.push(
 
 // --- 2. Populate Monthly Objectives (Meta) ---
 tasksByDate['meta-0'] = { objectives: "Assessment & Baseline: Consolidate data, Org chart, Meetings, KPI Scorecard", notes: "Focus on getting visibility first." };
-tasksByDate['meta-1'] = { objectives: "Design & Tool Pilot: Chart of Accounts, BILL Setup, JobTread Audit", notes: "Don't switch everything at once. Parallel test." };
-tasksByDate['meta-2'] = { objectives: "Build & Optimize: Deploy BILL/Gusto, Refine JobTread, KPI Dashboards", notes: "Go live with the new stack." };
+tasksByDate['meta-1'] = { objectives: "Design & Tool Pilot: Chart of Accounts, Ramp Setup, JobTread Audit", notes: "Don't switch everything at once. Parallel test." };
+tasksByDate['meta-2'] = { objectives: "Build & Optimize: Deploy Ramp/Gusto, Refine JobTread, KPI Dashboards", notes: "Go live with the new stack." };
 tasksByDate['meta-3'] = { objectives: "Finalize System: Month-end close, Full Sync. Launch Deck Care.", notes: "Ensure automation is working." };
 tasksByDate['meta-4'] = { objectives: "Peak Season Prep: Safety Training, Crew Staffing Finalized", notes: "Ramp up for summer." };
 tasksByDate['meta-5'] = { objectives: "Marketing Push & Mid-Year Review Prep", notes: "Fill the pipeline for fall." };
@@ -102,9 +101,9 @@ addTask('2026-02-09', 'Redesign Chart of Accounts for Job Costing');
 addTask('2026-02-09', 'Define Invoice Process Map');
 addTask('2026-02-09', 'Create Month-end close checklist draft');
 
-addTask('2026-02-16', 'Start BILL trial (Spend & Expense)');
-addTask('2026-02-16', 'Connect one bank account to BILL');
-addTask('2026-02-16', 'Tag 20 expenses by project in BILL');
+addTask('2026-02-16', 'Start Ramp trial (Spend & Expense)');
+addTask('2026-02-16', 'Connect one bank account to Ramp');
+addTask('2026-02-16', 'Tag 20 expenses by project in Ramp');
 
 addTask('2026-02-23', 'Demo Gusto');
 addTask('2026-02-23', 'Audit JobTread: Ensure Cost Codes match new Chart of Accounts');
@@ -113,7 +112,7 @@ addTask('2026-02-27', 'Create Side-by-side software comparison doc');
 addTask('2026-03-02', 'Finalize Month-end close process doc');
 addTask('2026-03-02', 'Finalize Team roles matrix');
 
-addTask('2026-03-09', 'Deploy BILL (Migrate all vendors/bills)');
+addTask('2026-03-09', 'Deploy Ramp (Migrate all vendors/bills)');
 addTask('2026-03-09', 'Deploy Gusto (Run first payroll)');
 
 addTask('2026-03-16', 'Verify JobTread Estimate-to-Invoice workflow with new accounting codes');
@@ -123,7 +122,7 @@ addTask('2026-03-23', 'Build Weekly KPI Scorecard');
 addTask('2026-03-23', 'Build Monthly Management Dashboard');
 
 addTask('2026-03-30', 'Complete Month-end close using new process');
-addTask('2026-03-30', 'Make QBO Integrations Official (BILL/Gusto/Bank)');
+addTask('2026-03-30', 'Make QBO Integrations Official (Ramp/Gusto/Bank)');
 
 addTask('2026-04-13', 'Decide on Full-time vs Part-time Bookkeeper');
 
@@ -184,7 +183,7 @@ const eventsJson = JSON.stringify(preloadedEvents).replace(/'/g, "''");
 const riceJson = JSON.stringify(riceProjects).replace(/'/g, "''");
 
 const sql = `
--- Update the "Deck Masters" plan with generated data (BILL & JobTread Optimized + Dated RICE)
+-- Update the "Deck Masters" plan with generated data (Ramp & JobTread Optimized + Dated RICE)
 UPDATE war_map_data
 SET
     tasks_by_date = '${tasksJson}'::jsonb,

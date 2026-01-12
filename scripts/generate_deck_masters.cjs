@@ -1,4 +1,3 @@
-
 const fs = require('fs');
 
 // --- Helper Functions & Constants ---
@@ -18,7 +17,7 @@ const riceProjects = [];
 
 // --- 1. Populate RICE Projects ---
 riceProjects.push(
-  { id: 'rp-1', name: 'Implement BILL (Expense & AP)', reach: 100, impact: 2, confidence: 90, effort: 1.5, score: (100*2*0.9)/1.5 }, // Adjusted for BILL
+  { id: 'rp-1', name: 'Implement Ramp (Expense & AP)', reach: 100, impact: 2, confidence: 90, effort: 1.5, score: (100*2*0.9)/1.5 }, // Adjusted for Ramp
   { id: 'rp-2', name: 'Implement Gusto (Payroll)', reach: 100, impact: 2, confidence: 95, effort: 0.5, score: (100*2*0.95)/0.5 },
   { id: 'rp-3', name: 'Optimize JobTread (Job Costing)', reach: 100, impact: 3, confidence: 95, effort: 1, score: (100*3*0.95)/1 }, // Already using, so "Optimize"
   { id: 'rp-4', name: 'KPI Dashboard Setup', reach: 50, impact: 2, confidence: 90, effort: 1, score: (50*2*0.9)/1 },
@@ -29,8 +28,8 @@ riceProjects.push(
 // --- 2. Populate Monthly Objectives (Meta) ---
 // Note: keys are "meta-0" for Jan, "meta-1" for Feb, etc.
 tasksByDate['meta-0'] = { objectives: "Assessment & Baseline: Consolidate data, Org chart, Meetings, KPI Scorecard", notes: "Focus on getting visibility first." };
-tasksByDate['meta-1'] = { objectives: "Design & Tool Pilot: Chart of Accounts, BILL Setup, JobTread Audit", notes: "Don't switch everything at once. Parallel test." };
-tasksByDate['meta-2'] = { objectives: "Build & Optimize: Deploy BILL/Gusto, Refine JobTread, KPI Dashboards", notes: "Go live with the new stack." };
+tasksByDate['meta-1'] = { objectives: "Design & Tool Pilot: Chart of Accounts, Ramp Setup, JobTread Audit", notes: "Don't switch everything at once. Parallel test." };
+tasksByDate['meta-2'] = { objectives: "Build & Optimize: Deploy Ramp/Gusto, Refine JobTread, KPI Dashboards", notes: "Go live with the new stack." };
 tasksByDate['meta-3'] = { objectives: "Finalize System: Month-end close, Full Sync", notes: "Ensure automation is working." };
 
 // --- 3. Populate Specific Tasks ---
@@ -62,9 +61,9 @@ addTask('2026-02-09', 'Redesign Chart of Accounts for Job Costing');
 addTask('2026-02-09', 'Define Invoice Process Map');
 addTask('2026-02-09', 'Create Month-end close checklist draft');
 
-addTask('2026-02-16', 'Start BILL trial (Spend & Expense)');
-addTask('2026-02-16', 'Connect one bank account to BILL');
-addTask('2026-02-16', 'Tag 20 expenses by project in BILL');
+addTask('2026-02-16', 'Start Ramp trial (Spend & Expense)');
+addTask('2026-02-16', 'Connect one bank account to Ramp');
+addTask('2026-02-16', 'Tag 20 expenses by project in Ramp');
 
 addTask('2026-02-23', 'Demo Gusto');
 addTask('2026-02-23', 'Audit JobTread: Ensure Cost Codes match new Chart of Accounts');
@@ -73,7 +72,7 @@ addTask('2026-02-27', 'Create Side-by-side software comparison doc');
 addTask('2026-03-02', 'Finalize Month-end close process doc');
 addTask('2026-03-02', 'Finalize Team roles matrix');
 
-addTask('2026-03-09', 'Deploy BILL (Migrate all vendors/bills)');
+addTask('2026-03-09', 'Deploy Ramp (Migrate all vendors/bills)');
 addTask('2026-03-09', 'Deploy Gusto (Run first payroll)');
 
 addTask('2026-03-16', 'Verify JobTread Estimate-to-Invoice workflow with new accounting codes');
@@ -83,7 +82,7 @@ addTask('2026-03-23', 'Build Weekly KPI Scorecard');
 addTask('2026-03-23', 'Build Monthly Management Dashboard');
 
 addTask('2026-03-30', 'Complete Month-end close using new process');
-addTask('2026-03-30', 'Make QBO Integrations Official (BILL/Gusto/Bank)');
+addTask('2026-03-30', 'Make QBO Integrations Official (Ramp/Gusto/Bank)');
 
 addTask('2026-04-13', 'Decide on Full-time vs Part-time Bookkeeper');
 
@@ -144,7 +143,7 @@ const eventsJson = JSON.stringify(preloadedEvents).replace(/'/g, "''");
 const riceJson = JSON.stringify(riceProjects).replace(/'/g, "''");
 
 const sql = `
--- Update the "Deck Masters" plan with generated data (BILL & JobTread Optimized)
+-- Update the "Deck Masters" plan with generated data (Ramp & JobTread Optimized)
 UPDATE war_map_data
 SET
     tasks_by_date = '${tasksJson}'::jsonb,

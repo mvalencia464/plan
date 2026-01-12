@@ -7,6 +7,7 @@ import PreloadedCalendar from './components/PreloadedCalendar';
 import Controls from './components/Controls';
 import RiceTool from './components/RiceTool';
 import CollaborationModal from './components/CollaborationModal';
+import Landing from './components/Landing';
 import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS, Collaborator, Plan } from './types';
 import { generateYearlyPlan } from './services/geminiService';
 
@@ -22,6 +23,7 @@ const App: React.FC = () => {
   
   // Auth & Collaboration State
   const [session, setSession] = useState<Session | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isCollaborationModalOpen, setIsCollaborationModalOpen] = useState(false);
   
   // Plans State
@@ -48,6 +50,7 @@ const App: React.FC = () => {
     if (publicId) {
       loadPublicData(publicId);
       setIsReadOnly(true);
+      setIsAuthChecking(false);
       return; // Skip auth flow if public
     }
 
@@ -58,6 +61,7 @@ const App: React.FC = () => {
         loadUserPlans(session.user.id);
         loadSharedPlans(session.user.email);
       }
+      setIsAuthChecking(false);
     });
 
     // 2. Listen for changes
@@ -417,6 +421,21 @@ const App: React.FC = () => {
     setView('dashboard');
     alert(`"${p.name}" has been added to your Stoke Planner Key! You can now drag on the calendar to highlight its timeframe.`);
   };
+
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-4 w-32 bg-gray-200 rounded mb-4"></div>
+          <div className="h-4 w-24 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session && !isReadOnly) {
+    return <Landing />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-['Inter'] select-none">
