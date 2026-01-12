@@ -124,9 +124,11 @@ const App: React.FC = () => {
 
   const loadUserPlans = async (userId: string) => {
     setIsLoadingPlans(true);
-    const { data, error } = await supabase
+    
+    // 1. Fetch metadata for ALL plans (lightweight)
+    const { data: plansMeta, error } = await supabase
       .from('war_map_data')
-      .select('*')
+      .select('id, user_id, name, updated_at')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
@@ -136,13 +138,30 @@ const App: React.FC = () => {
       return;
     }
 
-    if (data && data.length > 0) {
-      setPlans(data as Plan[]);
-      // Default to the first plan (most recently updated)
-      setCurrentPlan(data[0] as Plan);
+    if (plansMeta && plansMeta.length > 0) {
+      setPlans(plansMeta as Plan[]); // These are partial plans now
+      
+      // 2. Fetch FULL details for the most recent plan ONLY
+      await loadPlanDetails(plansMeta[0].id);
     } else {
       // No plans exist, create a default one
       await createDefaultPlan(userId);
+    }
+    setIsLoadingPlans(false);
+  };
+
+  const loadPlanDetails = async (planId: string) => {
+    setIsLoadingPlans(true);
+    const { data, error } = await supabase
+        .from('war_map_data')
+        .select('*')
+        .eq('id', planId)
+        .single();
+        
+    if (data) {
+        setCurrentPlan(data as Plan);
+        // Also update the plans list to include this full data if we want, 
+        // but keeping currentPlan separate is enough for the view.
     }
     setIsLoadingPlans(false);
   };
@@ -229,7 +248,7 @@ const App: React.FC = () => {
     if (planIds.length > 0) {
         const { data: plansData, error: plansError } = await supabase
             .from('war_map_data')
-            .select('*')
+            .select('id, user_id, name, updated_at')
             .in('id', planIds);
             
         if (plansData) {
@@ -242,7 +261,7 @@ const App: React.FC = () => {
         if (ownerIds.length > 0) {
              const { data: plansData, error: plansError } = await supabase
                 .from('war_map_data')
-                .select('*')
+                .select('id, user_id, name, updated_at')
                 .in('user_id', ownerIds); // Fetch ALL plans from these owners? Might be too much.
              
              // Ideally we only show what is explicitly shared. 
@@ -318,15 +337,17 @@ const App: React.FC = () => {
     setRiceProjects([]);
   };
 
-  const handleSwitchPlan = (planId: string) => {
+  const handleSwitchPlan = async (planId: string) => {
     if (planId === 'create-new') {
         handleCreatePlan();
         return;
     }
     
-    const plan = plans.find(p => p.id === planId) || sharedPlans.find(p => p.id === planId);
-    if (plan) {
-        setCurrentPlan(plan);
+    // Check if the plan metadata is available locally
+    const planMeta = plans.find(p => p.id === planId) || sharedPlans.find(p => p.id === planId);
+    if (planMeta) {
+        // Fetch full details
+        await loadPlanDetails(planId);
         setView('dashboard');
     }
   };
