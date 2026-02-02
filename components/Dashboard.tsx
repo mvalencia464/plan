@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { MONTH_NAMES, ColorKey, PRESET_COLORS, RiceProject } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -16,6 +16,132 @@ interface DashboardProps {
   planId?: string;
   readOnly?: boolean;
 }
+
+const isDateInRange = (dateStr: string, start?: string, end?: string) => {
+  if (!start || !end) return false;
+  const s = start < end ? start : end;
+  const e = start < end ? end : start;
+  return dateStr >= s && dateStr <= e;
+};
+
+const DayCell = memo(({
+  dayNum,
+  isDay,
+  dateStr,
+  isToday,
+  highlightColor,
+  hasTasks,
+  onMouseDown,
+  onMouseEnter,
+  onMouseUp
+}: {
+  dayNum: number;
+  isDay: boolean;
+  dateStr: string;
+  isToday: boolean;
+  highlightColor: string | null;
+  hasTasks: boolean;
+  onMouseDown: (dateStr: string) => void;
+  onMouseEnter: (dateStr: string) => void;
+  onMouseUp: () => void;
+}) => {
+  return (
+    <div
+      onMouseDown={() => isDay && onMouseDown(dateStr)}
+      onMouseEnter={() => isDay && onMouseEnter(dateStr)}
+      onMouseUp={onMouseUp}
+      className={`aspect-square flex items-center justify-center text-[9px] relative cursor-crosshair select-none ${isDay ? (highlightColor ? `${highlightColor} text-white` : 'bg-white text-gray-700 hover:bg-gray-50') : 'bg-gray-50'}`}
+    >
+      {isDay && (
+        <div className={`w-full h-full flex items-center justify-center ${isToday ? 'ring-2 ring-inset ring-blue-500 font-black z-10' : ''}`}>
+          {dayNum}
+          {hasTasks && !highlightColor && <div className="absolute bottom-0.5 w-1 h-1 bg-black rounded-full" />}
+        </div>
+      )}
+    </div>
+  );
+});
+
+const MiniMonth = memo(({
+  monthIdx,
+  year,
+  onMonthClick,
+  todayStr,
+  highlightMap,
+  tasksByDate,
+  dragStart,
+  dragCurrent, // [NEW] Accept dragCurrent
+  previewColor, // [NEW] Accept previewColor
+  onMouseDown,
+  onMouseEnter,
+  onMouseUp
+}: {
+  monthIdx: number;
+  year: number;
+  onMonthClick: (monthIndex: number) => void;
+  todayStr: string;
+  highlightMap: Record<string, string | null>;
+  tasksByDate: Record<string, any>;
+  dragStart: string | null;
+  dragCurrent: string | null; // [NEW] Type definition
+  previewColor: string | null; // [NEW] Type definition
+  onMouseDown: (dateStr: string) => void;
+  onMouseEnter: (dateStr: string) => void;
+  onMouseUp: () => void;
+}) => {
+  const firstDay = new Date(year, monthIdx, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+
+  return (
+    <div className="flex-1 bg-white border border-gray-300 transition-all group min-w-[140px] shadow-sm hover:shadow-md">
+      <div
+        onClick={(e) => { e.stopPropagation(); onMonthClick(monthIdx); }}
+        className="bg-black text-white text-[11px] font-black text-center py-1.5 uppercase tracking-widest cursor-pointer hover:bg-gray-800 transition-colors"
+      >
+        {MONTH_NAMES[monthIdx]}
+      </div>
+      <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+          <div key={i} className="text-center text-[8px] text-gray-400 font-medium py-0.5">
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-px bg-gray-200" onMouseLeave={() => !dragStart && onMouseEnter("")}>
+        {Array.from({ length: 35 }).map((_, i) => {
+          const dayNum = i - startOffset + 1;
+          const isDay = dayNum > 0 && dayNum <= daysInMonth;
+          const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+          const isToday = dateStr === todayStr;
+
+          // [OPTIMIZATION] Calculate drag highlight locally
+          let highlightColor = isDay ? highlightMap[dateStr] : null;
+          if (isDay && dragStart && dragCurrent && previewColor && isDateInRange(dateStr, dragStart, dragCurrent)) {
+            highlightColor = previewColor;
+          }
+
+          const hasTasks = tasksByDate[dateStr]?.tasks?.length > 0;
+
+          return (
+            <DayCell
+              key={i}
+              dayNum={dayNum}
+              isDay={isDay}
+              dateStr={dateStr}
+              isToday={isToday}
+              highlightColor={highlightColor || null}
+              hasTasks={hasTasks}
+              onMouseDown={onMouseDown}
+              onMouseEnter={onMouseEnter}
+              onMouseUp={onMouseUp}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 const Dashboard: React.FC<DashboardProps> = ({
   year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, riceProjects = [], userId, planId, readOnly = false
@@ -89,8 +215,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       const icsContent = generateICSContent();
       const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
       // Use planId if available for unique filenames per plan, otherwise fallback to user/year
-      const fileName = planId 
-        ? `${userId}/${planId}_${year}.ics` 
+      const fileName = planId
+        ? `${userId}/${planId}_${year}.ics`
         : `${userId}/war_map_${year}.ics`;
 
       // Upload to Supabase Storage
@@ -137,14 +263,24 @@ const Dashboard: React.FC<DashboardProps> = ({
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}`;
   };
 
-  const isDateInRange = (dateStr: string, start?: string, end?: string) => {
-    if (!start || !end) return false;
-    const s = start < end ? start : end;
-    const e = start < end ? end : start;
-    return dateStr >= s && dateStr <= e;
-  };
+  const highlightMap = useMemo(() => {
+    const map: Record<string, string | null> = {};
 
-  const getDayColor = (dateStr: string) => {
+    // Static highlights from saved keys
+    colorKeys.forEach(key => {
+      if (!key.startDate || !key.endDate) return;
+      const s = key.startDate < key.endDate ? key.startDate : key.endDate;
+      const e = key.startDate < key.endDate ? key.endDate : key.startDate;
+
+      // We only need to populate the map for dates that fall within the year's months
+      // For performance, we could be even more specific, but this is a good start.
+      // Actually, let's just use the isDateInRange logic but pre-computed.
+    });
+
+    return map;
+  }, [colorKeys, year]);
+
+  const getDayHighlight = useCallback((dateStr: string) => {
     // 1. Dragging: Show preview color
     if (dragStart && dragCurrent && isDateInRange(dateStr, dragStart, dragCurrent)) {
       if (activeKeyId) {
@@ -158,37 +294,57 @@ const Dashboard: React.FC<DashboardProps> = ({
     // 2. Static: Show saved color
     const activeKey = colorKeys.find(key => isDateInRange(dateStr, key.startDate, key.endDate));
     return activeKey ? activeKey.color : null;
-  };
+  }, [colorKeys]); // Removed drag dependencies
 
-  const onMouseDown = (dateStr: string) => {
+  // [OPTIMIZATION] Static map only, no drag dependencies
+  const staticHighlightMap = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    for (let m = 0; m < 12; m++) {
+      const days = new Date(year, m + 1, 0).getDate();
+      for (let d = 1; d <= days; d++) {
+        const dateStr = `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        // Only calculate static colors
+        const activeKey = colorKeys.find(key => isDateInRange(dateStr, key.startDate, key.endDate));
+        map[dateStr] = activeKey ? activeKey.color : null;
+      }
+    }
+    return map;
+  }, [year, colorKeys]); // Only updates when year or keys change
+
+  // [NEW] Determine preview color for passing to children
+  const previewColor = useMemo(() => {
+    if (activeKeyId) {
+      return colorKeys.find(k => k.id === activeKeyId)?.color || 'bg-blue-200';
+    } else {
+      return PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class;
+    }
+  }, [activeKeyId, colorKeys]);
+
+  const handleMouseDown = useCallback((dateStr: string) => {
     if (readOnly) return;
-    // Allow drag start even without activeKeyId to support "drag to create"
     setDragStart(dateStr);
     setDragCurrent(dateStr);
-  };
+  }, [readOnly]);
 
-  const onMouseEnter = (dateStr: string) => {
+  const handleMouseEnter = useCallback((dateStr: string) => {
     if (dragStart) {
       setDragCurrent(dateStr);
     }
-  };
+  }, [dragStart]);
 
-  const onMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     if (dragStart && dragCurrent) {
       const s = dragStart < dragCurrent ? dragStart : dragCurrent;
       const e = dragStart < dragCurrent ? dragCurrent : dragStart;
 
       if (activeKeyId) {
-        // Update existing key
         onUpdateKeys(colorKeys.map(k => k.id === activeKeyId ? {
           ...k,
           startDate: s,
           endDate: e
         } : k));
-        // Auto-deselect after moving/resizing
         setActiveKeyId(null);
       } else {
-        // Create new key
         const newKey: ColorKey = {
           id: Math.random().toString(36).substr(2, 9),
           label: 'New Initiative',
@@ -197,64 +353,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           endDate: e
         };
         onUpdateKeys([...colorKeys, newKey]);
-        // Do NOT set active - auto-deselect behavior
         setActiveKeyId(null);
       }
     }
     setDragStart(null);
     setDragCurrent(null);
-  };
-
-  const renderMiniMonth = (monthIdx: number) => {
-    const firstDay = new Date(year, monthIdx, 1);
-    const startOffset = (firstDay.getDay() + 6) % 7;
-    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
-
-    return (
-      <div className="flex-1 bg-white border border-gray-300 transition-all group min-w-[140px] shadow-sm hover:shadow-md">
-        <div
-          onClick={(e) => { e.stopPropagation(); onMonthClick(monthIdx); }}
-          className="bg-black text-white text-[11px] font-black text-center py-1.5 uppercase tracking-widest cursor-pointer hover:bg-gray-800 transition-colors"
-        >
-          {MONTH_NAMES[monthIdx]}
-        </div>
-        <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-            <div key={i} className="text-center text-[8px] text-gray-400 font-medium py-0.5">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-px bg-gray-200" onMouseLeave={() => !dragStart && setDragCurrent(null)}>
-          {Array.from({ length: 35 }).map((_, i) => {
-            const dayNum = i - startOffset + 1;
-            const isDay = dayNum > 0 && dayNum <= daysInMonth;
-            const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-            const isToday = dateStr === todayStr;
-            const highlightColor = isDay ? getDayColor(dateStr) : null;
-            const hasTasks = tasksByDate[dateStr]?.tasks?.length > 0;
-
-            return (
-              <div
-                key={i}
-                onMouseDown={() => isDay && onMouseDown(dateStr)}
-                onMouseEnter={() => isDay && onMouseEnter(dateStr)}
-                onMouseUp={onMouseUp}
-                className={`aspect-square flex items-center justify-center text-[9px] relative cursor-crosshair select-none ${isDay ? (highlightColor ? `${highlightColor} text-white` : 'bg-white text-gray-700 hover:bg-gray-50') : 'bg-gray-50'}`}
-              >
-                {isDay && (
-                  <div className={`w-full h-full flex items-center justify-center ${isToday ? 'ring-2 ring-inset ring-blue-500 font-black z-10' : ''}`}>
-                    {dayNum}
-                    {hasTasks && !highlightColor && <div className="absolute bottom-0.5 w-1 h-1 bg-black rounded-full" />}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  }, [dragStart, dragCurrent, activeKeyId, colorKeys, onUpdateKeys, setActiveKeyId]);
 
   const handleKeyUpdate = (id: string, updates: Partial<ColorKey>) => {
     onUpdateKeys(colorKeys.map(k => k.id === id ? { ...k, ...updates } : k));
@@ -294,17 +398,31 @@ const Dashboard: React.FC<DashboardProps> = ({
     .sort((a, b) => b.score - a.score)
     .slice(0, 5); // Top 5 suggestions
 
+  // Removed activeHighlightMap and rely on staticHighlightMap + local calculation
+
   return (
-    <div className="flex flex-col xl:flex-row gap-8" onMouseUp={onMouseUp}>
+    <div className="flex flex-col xl:flex-row gap-8" onMouseUp={handleMouseUp}>
       <div className="flex-1">
         <h2 className="text-3xl font-black text-center mb-8 uppercase tracking-[0.3em] text-gray-800">
           War Map {year}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {MONTH_NAMES.map((_, i) => (
-            <React.Fragment key={i}>
-              {renderMiniMonth(i)}
-            </React.Fragment>
+            <MiniMonth
+              key={i}
+              monthIdx={i}
+              year={year}
+              onMonthClick={onMonthClick}
+              todayStr={todayStr}
+              highlightMap={staticHighlightMap}
+              tasksByDate={tasksByDate}
+              dragStart={dragStart}
+              dragCurrent={dragCurrent}
+              previewColor={previewColor}
+              onMouseDown={handleMouseDown}
+              onMouseEnter={handleMouseEnter}
+              onMouseUp={handleMouseUp}
+            />
           ))}
         </div>
       </div>

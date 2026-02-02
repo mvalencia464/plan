@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseClient';
 import Dashboard from './components/Dashboard';
@@ -20,12 +20,12 @@ const App: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+
   // Auth & Collaboration State
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isCollaborationModalOpen, setIsCollaborationModalOpen] = useState(false);
-  
+
   // Plans State
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
@@ -72,8 +72,8 @@ const App: React.FC = () => {
       if (session) {
         // Only reload if we don't have plans loaded or it's a completely new user
         if (plans.length === 0 || (currentPlan && currentPlan.user_id !== session.user.id)) {
-            loadUserPlans(session.user.id);
-            loadSharedPlans(session.user.email);
+          loadUserPlans(session.user.id);
+          loadSharedPlans(session.user.email);
         }
       } else {
         handleLogout();
@@ -81,6 +81,12 @@ const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    console.log("App Mounted. Checking Config...");
+    console.log("Supabase URL:", !!(supabase as any).supabaseUrl ? "Present" : "MISSING");
+    console.log("Supabase Key:", !!(supabase as any).supabaseKey ? "Present" : "MISSING");
   }, []);
 
   // Update local state when currentPlan changes
@@ -124,7 +130,7 @@ const App: React.FC = () => {
 
   const loadUserPlans = async (userId: string) => {
     setIsLoadingPlans(true);
-    
+
     // 1. Fetch metadata for ALL plans (lightweight)
     const { data: plansMeta, error } = await supabase
       .from('war_map_data')
@@ -140,7 +146,7 @@ const App: React.FC = () => {
 
     if (plansMeta && plansMeta.length > 0) {
       setPlans(plansMeta as Plan[]); // These are partial plans now
-      
+
       // 2. Fetch FULL details for the most recent plan ONLY
       await loadPlanDetails(plansMeta[0].id);
     } else {
@@ -153,15 +159,15 @@ const App: React.FC = () => {
   const loadPlanDetails = async (planId: string) => {
     setIsLoadingPlans(true);
     const { data, error } = await supabase
-        .from('war_map_data')
-        .select('*')
-        .eq('id', planId)
-        .single();
-        
+      .from('war_map_data')
+      .select('*')
+      .eq('id', planId)
+      .single();
+
     if (data) {
-        setCurrentPlan(data as Plan);
-        // Also update the plans list to include this full data if we want, 
-        // but keeping currentPlan separate is enough for the view.
+      setCurrentPlan(data as Plan);
+      // Also update the plans list to include this full data if we want, 
+      // but keeping currentPlan separate is enough for the view.
     }
     setIsLoadingPlans(false);
   };
@@ -231,53 +237,53 @@ const App: React.FC = () => {
 
   const loadSharedPlans = async (email?: string) => {
     if (!email) return;
-    
+
     // First get the collaboration records
     const { data: collaborations, error: collabError } = await supabase
-        .from('plan_collaborators')
-        .select('plan_id, owner_id')
-        .eq('collaborator_email', email);
-    
+      .from('plan_collaborators')
+      .select('plan_id, owner_id')
+      .eq('collaborator_email', email);
+
     if (collabError || !collaborations || collaborations.length === 0) return;
 
     // Filter out collaborations that might not have a plan_id (legacy)
     // For legacy support (owner sharing all), we might need logic, but assuming migration:
     const planIds = collaborations.map(c => c.plan_id).filter(id => id);
-    
+
     // If we have specific plan IDs, fetch them
     if (planIds.length > 0) {
-        const { data: plansData, error: plansError } = await supabase
-            .from('war_map_data')
-            .select('id, user_id, name, updated_at')
-            .in('id', planIds);
-            
-        if (plansData) {
-            setSharedPlans(plansData as Plan[]);
-        }
+      const { data: plansData, error: plansError } = await supabase
+        .from('war_map_data')
+        .select('id, user_id, name, updated_at')
+        .in('id', planIds);
+
+      if (plansData) {
+        setSharedPlans(plansData as Plan[]);
+      }
     } else {
-        // Fallback for legacy "Owner Share" (if no plan_id in collaborations)
-        // We fetch plans owned by these owners
-        const ownerIds = collaborations.map(c => c.owner_id);
-        if (ownerIds.length > 0) {
-             const { data: plansData, error: plansError } = await supabase
-                .from('war_map_data')
-                .select('id, user_id, name, updated_at')
-                .in('user_id', ownerIds); // Fetch ALL plans from these owners? Might be too much.
-             
-             // Ideally we only show what is explicitly shared. 
-             // If legacy was "share everything", then fetching all is correct.
-             if (plansData) {
-                 setSharedPlans(plansData as Plan[]);
-             }
+      // Fallback for legacy "Owner Share" (if no plan_id in collaborations)
+      // We fetch plans owned by these owners
+      const ownerIds = collaborations.map(c => c.owner_id);
+      if (ownerIds.length > 0) {
+        const { data: plansData, error: plansError } = await supabase
+          .from('war_map_data')
+          .select('id, user_id, name, updated_at')
+          .in('user_id', ownerIds); // Fetch ALL plans from these owners? Might be too much.
+
+        // Ideally we only show what is explicitly shared. 
+        // If legacy was "share everything", then fetching all is correct.
+        if (plansData) {
+          setSharedPlans(plansData as Plan[]);
         }
+      }
     }
   };
 
   const saveData = async () => {
     if (!session || !currentPlan || isReadOnly) return;
-    
+
     // Only save if I am the owner OR I am a collaborator (policy handles permission)
-    
+
     const { error } = await supabase
       .from('war_map_data')
       .update({
@@ -294,13 +300,13 @@ const App: React.FC = () => {
 
   // Debounced Save
   useEffect(() => {
-    if (isReadOnly) return; 
+    if (isReadOnly) return;
 
     const timeout = setTimeout(() => {
       if (session && currentPlan) {
         saveData();
       }
-    }, 2000); 
+    }, 2000);
 
     return () => clearTimeout(timeout);
   }, [tasksByDate, colorKeys, preloadedEvents, riceProjects, session, currentPlan]);
@@ -339,22 +345,22 @@ const App: React.FC = () => {
 
   const handleSwitchPlan = async (planId: string) => {
     if (planId === 'create-new') {
-        handleCreatePlan();
-        return;
+      handleCreatePlan();
+      return;
     }
-    
+
     // Check if the plan metadata is available locally
     const planMeta = plans.find(p => p.id === planId) || sharedPlans.find(p => p.id === planId);
     if (planMeta) {
-        // Fetch full details
-        await loadPlanDetails(planId);
-        setView('dashboard');
+      // Fetch full details
+      await loadPlanDetails(planId);
+      setView('dashboard');
     }
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0 || !session) return;
-    
+
     const file = event.target.files[0];
     const fileExt = file.name.split('.').pop();
     const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
@@ -394,27 +400,27 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateTasks = (date: string, tasks: Task[]) => {
+  const handleUpdateTasks = useCallback((date: string, tasks: Task[]) => {
     setTasksByDate(prev => ({
       ...prev,
       [date]: { ...prev[date], tasks }
     }));
-  };
+  }, []);
 
-  const handleUpdateMeta = (monthIndex: number, type: 'objectives' | 'notes', value: string) => {
+  const handleUpdateMeta = useCallback((monthIndex: number, type: 'objectives' | 'notes', value: string) => {
     const key = `meta-${monthIndex}`;
     setTasksByDate(prev => ({
       ...prev,
       [key]: { ...prev[key], [type]: value }
     }));
-  };
+  }, []);
 
-  const handleMonthClick = (idx: number) => {
+  const handleMonthClick = useCallback((idx: number) => {
     setActiveMonth(idx);
     setView('month');
-  };
+  }, []);
 
-  const handleGeneratePlan = async (theme: string) => {
+  const handleGeneratePlan = useCallback(async (theme: string) => {
     setIsGenerating(true);
     const events = await generateYearlyPlan(year, theme);
     const eventsWithIds = events.map(e => ({
@@ -424,24 +430,24 @@ const App: React.FC = () => {
     setPreloadedEvents(eventsWithIds);
     setIsGenerating(false);
     setView('strategy');
-  };
+  }, [year]);
 
-  const handleAddYear = () => {
+  const handleAddYear = useCallback(() => {
     const nextYear = Math.max(...years) + 1;
     setYears(prev => [...prev, nextYear]);
-  };
+  }, [years]);
 
-  const handleDeployProject = (p: RiceProject) => {
+  const handleDeployProject = useCallback((p: RiceProject) => {
     const newKey: ColorKey = {
       id: Math.random().toString(36).substr(2, 9),
       label: p.name,
       color: PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class,
     };
-    setColorKeys([...colorKeys, newKey]);
+    setColorKeys(prev => [...prev, newKey]);
     setActiveKeyId(newKey.id);
     setView('dashboard');
     alert(`"${p.name}" has been added to your Stoke Planner Key! You can now drag on the calendar to highlight its timeframe.`);
-  };
+  }, [colorKeys.length]);
 
   if (isAuthChecking) {
     return (
@@ -464,17 +470,17 @@ const App: React.FC = () => {
       <header className="no-print bg-black text-white sticky top-0 z-[60] shadow-lg">
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center gap-4">
           <div className="flex items-center gap-6">
-          <div 
-            onClick={() => { setView('dashboard'); }}
-            className="text-xl font-black tracking-tighter cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            WAR MAP <span className="text-gray-500 font-light">{year}</span>
-          </div>
+            <div
+              onClick={() => { setView('dashboard'); }}
+              className="text-xl font-black tracking-tighter cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              WAR MAP <span className="text-gray-500 font-light">{year}</span>
+            </div>
             <div className="h-6 w-px bg-gray-800 hidden md:block" />
           </div>
-          
+
           <nav className="flex items-center gap-1 md:gap-2 flex-1 w-full md:w-auto overflow-x-auto md:overflow-visible md:flex-wrap no-scrollbar pb-2 md:pb-0 px-1">
-            <button 
+            <button
               onClick={() => setView('dashboard')}
               className={`whitespace-nowrap px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all shrink-0 ${view === 'dashboard' ? 'bg-white text-black' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
@@ -496,95 +502,95 @@ const App: React.FC = () => {
             {/* Auth Button */}
             {isReadOnly ? (
               <div className="flex items-center gap-3">
-                 <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-gray-800 text-white rounded cursor-default">
-                   Read Only View
-                 </span>
-                 <a 
-                   href="/"
-                   className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"
-                 >
-                   Create Your Own
-                 </a>
+                <span className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-gray-800 text-white rounded cursor-default">
+                  Read Only View
+                </span>
+                <a
+                  href="/"
+                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"
+                >
+                  Create Your Own
+                </a>
               </div>
             ) : session ? (
-               <div className="flex items-center gap-3">
-                 <div className="relative group">
-                   <select
-                     value={currentPlan?.id || ''}
-                     onChange={(e) => handleSwitchPlan(e.target.value)}
-                     className="appearance-none bg-gray-900 text-white text-[10px] font-bold uppercase tracking-wider pl-3 pr-8 py-1.5 rounded border border-gray-700 hover:border-gray-500 focus:outline-none cursor-pointer max-w-[150px] truncate"
-                   >
-                     <optgroup label="My Plans">
-                        {plans.map(p => (
-                           <option key={p.id} value={p.id}>
-                             {p.name || 'Untitled Plan'}
-                           </option>
+              <div className="flex items-center gap-3">
+                <div className="relative group">
+                  <select
+                    value={currentPlan?.id || ''}
+                    onChange={(e) => handleSwitchPlan(e.target.value)}
+                    className="appearance-none bg-gray-900 text-white text-[10px] font-bold uppercase tracking-wider pl-3 pr-8 py-1.5 rounded border border-gray-700 hover:border-gray-500 focus:outline-none cursor-pointer max-w-[150px] truncate"
+                  >
+                    <optgroup label="My Plans">
+                      {plans.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name || 'Untitled Plan'}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {sharedPlans.length > 0 && (
+                      <optgroup label="Shared with Me">
+                        {sharedPlans.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name || 'Untitled Shared Plan'}
+                          </option>
                         ))}
-                     </optgroup>
-                     {sharedPlans.length > 0 && (
-                        <optgroup label="Shared with Me">
-                           {sharedPlans.map(p => (
-                             <option key={p.id} value={p.id}>
-                               {p.name || 'Untitled Shared Plan'}
-                             </option>
-                           ))}
-                        </optgroup>
-                     )}
-                     <option value="create-new" className="text-blue-400">+ Create New Plan</option>
-                   </select>
-                   <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
-                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                   </div>
-                 </div>
-                 
-                 <button 
-                   onClick={() => setIsCollaborationModalOpen(true)}
-                   className="p-1.5 text-gray-400 hover:text-white transition-colors border border-gray-800 rounded hover:bg-gray-800"
-                   title="Share Current Plan"
-                 >
-                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                 </button>
+                      </optgroup>
+                    )}
+                    <option value="create-new" className="text-blue-400">+ Create New Plan</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-gray-400">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                </div>
 
-                 <label className="relative group cursor-pointer">
-                   <input 
-                     type="file" 
-                     className="hidden" 
-                     accept="image/*"
-                     onChange={handleAvatarUpload}
-                   />
-                   {session.user.user_metadata.custom_avatar_url || session.user.user_metadata.avatar_url || session.user.user_metadata.picture ? (
-                      <img 
-                        src={session.user.user_metadata.custom_avatar_url || session.user.user_metadata.avatar_url || session.user.user_metadata.picture} 
-                        alt="User Avatar" 
-                        referrerPolicy="no-referrer"
-                        className="w-8 h-8 rounded-full border border-gray-700 object-cover group-hover:opacity-75 transition-opacity"
-                        title="Click to upload custom avatar" 
-                      />
-                   ) : (
-                      <div 
-                        className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-white font-bold border border-gray-700 group-hover:bg-gray-700 transition-colors"
-                        title="Click to upload custom avatar"
-                      >
-                        {session.user.email?.charAt(0).toUpperCase()}
-                      </div>
-                   )}
-                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full pointer-events-none">
-                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                   </div>
-                 </label>
-                 <button 
-                   onClick={handleLogout}
-                   className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"
-                 >
-                   Logout
-                 </button>
-               </div>
+                <button
+                  onClick={() => setIsCollaborationModalOpen(true)}
+                  className="p-1.5 text-gray-400 hover:text-white transition-colors border border-gray-800 rounded hover:bg-gray-800"
+                  title="Share Current Plan"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                </button>
+
+                <label className="relative group cursor-pointer">
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                  />
+                  {session.user.user_metadata.custom_avatar_url || session.user.user_metadata.avatar_url || session.user.user_metadata.picture ? (
+                    <img
+                      src={session.user.user_metadata.custom_avatar_url || session.user.user_metadata.avatar_url || session.user.user_metadata.picture}
+                      alt="User Avatar"
+                      referrerPolicy="no-referrer"
+                      className="w-8 h-8 rounded-full border border-gray-700 object-cover group-hover:opacity-75 transition-opacity"
+                      title="Click to upload custom avatar"
+                    />
+                  ) : (
+                    <div
+                      className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs text-white font-bold border border-gray-700 group-hover:bg-gray-700 transition-colors"
+                      title="Click to upload custom avatar"
+                    >
+                      {session.user.email?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full pointer-events-none">
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  </div>
+                </label>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-gray-700 rounded hover:bg-white hover:text-black transition-all"
+                >
+                  Logout
+                </button>
+              </div>
             ) : (
-              <button 
+              <button
                 onClick={handleLogin}
                 className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-blue-600 text-white rounded hover:bg-blue-500 transition-all flex items-center gap-2"
               >
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z" /></svg>
                 Sign In
               </button>
             )}
@@ -592,23 +598,23 @@ const App: React.FC = () => {
             <div className="h-6 w-px bg-gray-800 mx-2 hidden md:block" />
 
             <div className="relative" ref={dropdownRef}>
-              <button 
+              <button
                 onClick={() => setShowToolsDropdown(!showToolsDropdown)}
                 className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded transition-all flex items-center gap-2 ${view === 'strategy' || view === 'rice' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
               >
                 Tools
                 <svg className={`w-3 h-3 transition-transform ${showToolsDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
               </button>
-              
+
               {showToolsDropdown && (
                 <div className="absolute right-0 mt-2 w-48 bg-black border border-gray-800 rounded shadow-2xl py-2 z-[70] animate-in fade-in slide-in-from-top-2 duration-200">
-                  <button 
+                  <button
                     onClick={() => { setView('rice'); setShowToolsDropdown(false); }}
                     className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
                   >
                     RICE Scoring
                   </button>
-                  <button 
+                  <button
                     onClick={() => { setView('strategy'); setShowToolsDropdown(false); }}
                     className="w-full text-left px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/10"
                   >
@@ -619,14 +625,14 @@ const App: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <select 
-                value={year} 
+              <select
+                value={year}
                 onChange={(e) => setYear(Number(e.target.value))}
                 className="bg-transparent text-xs font-black border-none focus:ring-0 cursor-pointer text-gray-400 hover:text-white uppercase"
               >
                 {years.map(y => <option key={y} value={y} className="bg-black text-white">{y}</option>)}
               </select>
-              <button 
+              <button
                 onClick={handleAddYear}
                 className="text-gray-500 hover:text-white transition-colors"
                 title="Add Next Year"
@@ -634,7 +640,7 @@ const App: React.FC = () => {
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" /></svg>
               </button>
             </div>
-            <button 
+            <button
               onClick={() => window.print()}
               className="p-2 text-gray-500 hover:text-white transition-colors"
               title="Print/Export"
@@ -647,11 +653,11 @@ const App: React.FC = () => {
 
       {/* Global Controls - Restricted to Strategy View only */}
       {view === 'strategy' && !isReadOnly && (
-        <Controls 
-          year={year} 
-          years={years} 
-          onYearChange={setYear} 
-          onAddYear={handleAddYear} 
+        <Controls
+          year={year}
+          years={years}
+          onYearChange={setYear}
+          onAddYear={handleAddYear}
           onGeneratePlan={handleGeneratePlan}
           isLoading={isGenerating}
         />
@@ -661,10 +667,10 @@ const App: React.FC = () => {
         <div className="max-w-[1800px] mx-auto">
           {view === 'dashboard' && (
             <div className="animate-in fade-in duration-500">
-              <Dashboard 
-                year={year} 
-                onMonthClick={handleMonthClick} 
-                tasksByDate={tasksByDate} 
+              <Dashboard
+                year={year}
+                onMonthClick={handleMonthClick}
+                tasksByDate={tasksByDate}
                 colorKeys={colorKeys}
                 onUpdateKeys={setColorKeys}
                 activeKeyId={activeKeyId}
@@ -676,12 +682,12 @@ const App: React.FC = () => {
               />
             </div>
           )}
-          
+
           {view === 'month' && (
             <div className="animate-in slide-in-from-right-8 duration-500">
-              <MonthFocus 
-                year={year} 
-                monthIndex={activeMonth} 
+              <MonthFocus
+                year={year}
+                monthIndex={activeMonth}
                 tasksByDate={tasksByDate}
                 colorKeys={colorKeys}
                 preloadedEvents={preloadedEvents}
@@ -695,8 +701,8 @@ const App: React.FC = () => {
 
           {view === 'strategy' && (
             <div className="animate-in fade-in zoom-in-95 duration-500">
-              <PreloadedCalendar 
-                year={year} 
+              <PreloadedCalendar
+                year={year}
                 events={preloadedEvents}
                 onAddEvent={(e) => setPreloadedEvents(prev => [...prev, { ...e, id: Math.random().toString(36).substr(2, 9) }])}
                 onUpdateEvent={(oldE, newE) => {
@@ -708,8 +714,8 @@ const App: React.FC = () => {
                 }}
                 onDeleteEvent={(eToDelete) => {
                   setPreloadedEvents(prev => prev.filter(e => {
-                     if (e.id && eToDelete.id) return e.id !== eToDelete.id;
-                     return !(e.date === eToDelete.date && e.title === eToDelete.title && e.category === eToDelete.category);
+                    if (e.id && eToDelete.id) return e.id !== eToDelete.id;
+                    return !(e.date === eToDelete.date && e.title === eToDelete.title && e.category === eToDelete.category);
                   }));
                 }}
                 onClearEvents={() => setPreloadedEvents([])}
@@ -721,9 +727,9 @@ const App: React.FC = () => {
 
           {view === 'rice' && (
             <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-              <RiceTool 
-                projects={riceProjects} 
-                onUpdateProjects={setRiceProjects} 
+              <RiceTool
+                projects={riceProjects}
+                onUpdateProjects={setRiceProjects}
                 onDeployToKey={handleDeployProject}
                 readOnly={isReadOnly}
               />
@@ -737,10 +743,10 @@ const App: React.FC = () => {
           Stoke Planner &bull; Strategic Yearly Planner
         </p>
       </footer>
-      
-      <CollaborationModal 
-        isOpen={isCollaborationModalOpen} 
-        onClose={() => setIsCollaborationModalOpen(false)} 
+
+      <CollaborationModal
+        isOpen={isCollaborationModalOpen}
+        onClose={() => setIsCollaborationModalOpen(false)}
         currentUserEmail={session?.user.email}
         currentPlanId={currentPlan?.id}
       />

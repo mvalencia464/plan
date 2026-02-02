@@ -12,18 +12,25 @@ const Landing: React.FC = () => {
     if (error) console.error('Login error:', error.message);
   };
 
+  const isConfigured = !!(supabase as any).supabaseUrl && !!(supabase as any).supabaseKey;
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-['Inter']">
+      {!isConfigured && (
+        <div className="bg-red-600 text-white px-4 py-3 text-center text-sm font-bold animate-pulse">
+          CRITICAL ERROR: Supabase Configuration Missing. Check Netlify Environment Variables.
+        </div>
+      )}
       <div className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="max-w-md w-full bg-white shadow-xl rounded-2xl p-8 md:p-12 border border-gray-100 text-center animate-in fade-in zoom-in-95 duration-500">
           <div className="mb-8">
-             <h1 className="text-4xl font-black tracking-tighter mb-2">WAR MAP</h1>
-             <p className="text-gray-400 font-medium tracking-wide text-sm">STRATEGIC YEARLY PLANNER</p>
+            <h1 className="text-4xl font-black tracking-tighter mb-2">WAR MAP</h1>
+            <p className="text-gray-400 font-medium tracking-wide text-sm">STRATEGIC YEARLY PLANNER</p>
           </div>
 
           <div className="space-y-6">
             <p className="text-gray-600 leading-relaxed text-sm">
-              Map your year, track your initiatives, and align your strategy. 
+              Map your year, track your initiatives, and align your strategy.
               Sign in to access your personal War Map.
             </p>
 
@@ -36,15 +43,15 @@ const Landing: React.FC = () => {
               </svg>
               <span>Continue with Google</span>
             </button>
-            
+
             <p className="text-xs text-gray-400 mt-4">
               Secure authentication powered by Google & Supabase.
             </p>
           </div>
         </div>
-        
+
         <div className="mt-12 text-center opacity-40">
-           <p className="text-[10px] font-black uppercase tracking-[0.3em]">Stoke Planner &bull; 2026</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em]">Stoke Planner &bull; 2026</p>
         </div>
       </div>
     </div>

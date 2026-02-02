@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { MONTH_NAMES, WEEKDAYS, WEEKDAY_INITIALS, Task, ColorKey, PreloadedEvent } from '../types';
 
 interface MonthFocusProps {
@@ -13,6 +13,275 @@ interface MonthFocusProps {
   activeKeyId: string | null;
   readOnly?: boolean;
 }
+
+const MonthTaskItem = memo(({
+  task,
+  dateStr,
+  readOnly,
+  editingTaskId,
+  draggedTaskId,
+  handleDragStart,
+  handleDropOnTask,
+  setEditingTaskId,
+  setEditingTaskText,
+  editingTaskText,
+  setEditingTaskTextValue,
+  onEditKeyDown,
+  handleSaveEdit,
+  toggleTask,
+  copyTaskToNextDay,
+  removeTask,
+  editInputRef
+}: {
+  task: Task;
+  dateStr: string;
+  readOnly: boolean;
+  editingTaskId: string | null;
+  draggedTaskId: string | null;
+  handleDragStart: (e: React.DragEvent, date: string, taskId: string) => void;
+  handleDropOnTask: (e: React.DragEvent, targetDate: string, targetTaskId: string) => void;
+  setEditingTaskId: (id: string | null) => void;
+  setEditingTaskText: (text: string) => void;
+  editingTaskText: string;
+  setEditingTaskTextValue: (text: string) => void;
+  onEditKeyDown: (e: React.KeyboardEvent, date: string) => void;
+  handleSaveEdit: (date: string) => void;
+  toggleTask: (date: string, taskId: string) => void;
+  copyTaskToNextDay: (date: string, task: Task) => void;
+  removeTask: (date: string, taskId: string) => void;
+  editInputRef: React.RefObject<HTMLInputElement | null>;
+}) => {
+  const isEditing = editingTaskId === task.id;
+
+  return (
+    <div
+      draggable={!readOnly && !editingTaskId}
+      onDragStart={(e) => !readOnly && handleDragStart(e, dateStr, task.id)}
+      onDrop={(e) => !readOnly && handleDropOnTask(e, dateStr, task.id)}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (!readOnly) {
+          setEditingTaskId(task.id);
+          setEditingTaskTextValue(task.text);
+        }
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className={`flex items-center gap-1.5 group/task relative py-1 px-1.5 rounded border border-transparent hover:border-black/5 hover:bg-white/80 transition-all ${!readOnly ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedTaskId === task.id ? 'opacity-30' : ''} ${isEditing ? 'bg-white shadow-sm ring-1 ring-black/5 z-20' : ''}`}
+    >
+      {isEditing ? (
+        <input
+          ref={editInputRef}
+          type="text"
+          value={editingTaskText}
+          onChange={(e) => setEditingTaskTextValue(e.target.value)}
+          onKeyDown={(e) => onEditKeyDown(e, dateStr)}
+          onBlur={() => handleSaveEdit(dateStr)}
+          className="w-full text-[11px] font-bold p-0 border-none focus:ring-0 bg-transparent"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <>
+          <input
+            type="checkbox"
+            checked={task.completed}
+            disabled={readOnly}
+            onChange={() => toggleTask(dateStr, task.id)}
+            className="h-3.5 w-3.5 rounded-sm border-gray-400 text-black focus:ring-black cursor-pointer z-10 shrink-0 disabled:opacity-50"
+          />
+          <span className={`text-[11px] leading-tight flex-1 transition-all ${task.completed ? 'line-through text-gray-400' : 'text-gray-800 font-bold'}`}>
+            {task.text}
+          </span>
+
+          {!readOnly && (
+            <div className="flex gap-0.5 opacity-0 group-hover/task:opacity-100 transition-all">
+              <button
+                onClick={(e) => { e.stopPropagation(); copyTaskToNextDay(dateStr, task); }}
+                title="Duplicate"
+                className="p-1 hover:bg-green-50 text-green-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); removeTask(dateStr, task.id); }}
+                title="Delete"
+                className="p-1 hover:bg-red-50 text-red-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+});
+
+const MonthDayCell = memo(({
+  dayNum,
+  isDay,
+  dateStr,
+  isToday,
+  dayTasks,
+  dayEvents,
+  highlight,
+  readOnly,
+  editingDay,
+  editingTaskId,
+  draggedTaskId,
+  newTaskText,
+  setEditingDay,
+  setNewTaskText,
+  onKeyDown,
+  handleAddTask,
+  handleDragOver,
+  handleDropOnDay,
+  handleDragStart,
+  handleDropOnTask,
+  setEditingTaskId,
+  setEditingTaskText,
+  editingTaskText,
+  setEditingTaskTextValue,
+  onEditKeyDown,
+  handleSaveEdit,
+  toggleTask,
+  copyTaskToNextDay,
+  removeTask,
+  inputRef,
+  editInputRef,
+  weekDayName
+}: {
+  dayNum: number;
+  isDay: boolean;
+  dateStr: string;
+  isToday: boolean;
+  dayTasks: Task[];
+  dayEvents: PreloadedEvent[];
+  highlight: { baseColorClass: string; borderColorClass: string } | null;
+  readOnly: boolean;
+  editingDay: string | null;
+  editingTaskId: string | null;
+  draggedTaskId: string | null;
+  newTaskText: string;
+  setEditingDay: (day: string | null) => void;
+  setNewTaskText: (text: string) => void;
+  onKeyDown: (e: React.KeyboardEvent, date: string) => void;
+  handleAddTask: (date: string) => void;
+  handleDragOver: (e: React.DragEvent) => void;
+  handleDropOnDay: (e: React.DragEvent, targetDate: string) => void;
+  handleDragStart: (e: React.DragEvent, date: string, taskId: string) => void;
+  handleDropOnTask: (e: React.DragEvent, targetDate: string, targetTaskId: string) => void;
+  setEditingTaskId: (id: string | null) => void;
+  setEditingTaskText: (text: string) => void;
+  editingTaskText: string;
+  setEditingTaskTextValue: (text: string) => void;
+  onEditKeyDown: (e: React.KeyboardEvent, date: string) => void;
+  handleSaveEdit: (date: string) => void;
+  toggleTask: (date: string, taskId: string) => void;
+  copyTaskToNextDay: (date: string, task: Task) => void;
+  removeTask: (date: string, taskId: string) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  editInputRef: React.RefObject<HTMLInputElement | null>;
+  weekDayName: string;
+}) => {
+  return (
+    <div
+      onClick={() => !readOnly && isDay && !editingTaskId && setEditingDay(dateStr)}
+      onDragOver={handleDragOver}
+      onDrop={(e) => !readOnly && isDay && handleDropOnDay(e, dateStr)}
+      className={`min-h-[120px] md:min-h-[160px] p-2 transition-all relative group flex flex-col ${isDay ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hidden md:flex'
+        } ${isToday ? 'ring-4 ring-blue-500 ring-inset z-10' : ''}`}
+    >
+      {isDay && (
+        <>
+          {highlight && (
+            <div
+              className={`absolute inset-0 ${highlight.baseColorClass} border-y-2 ${highlight.borderColorClass} pointer-events-none z-0`}
+              style={{ opacity: 0.05 }}
+            />
+          )}
+
+          <div className="flex justify-between items-center mb-2 z-10 relative pointer-events-none">
+            <div className="flex items-baseline gap-2">
+              <span className={`text-base font-black ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+                {dayNum}
+              </span>
+              <span className="md:hidden text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                {weekDayName}
+              </span>
+            </div>
+            {isToday && <span className="text-[7px] uppercase bg-blue-500 text-white px-1.5 py-0.5 rounded-full animate-pulse font-black">Today</span>}
+          </div>
+
+          <div className="space-y-1 flex-1 overflow-y-auto custom-scrollbar z-10 relative">
+            {dayEvents.map(evt => (
+              <div
+                key={evt.id || Math.random()}
+                className={`flex items-start gap-1.5 py-1 px-1.5 rounded text-[10px] font-bold leading-tight mb-1 border-l-2 shadow-sm ${evt.category === 'milestone' ? 'bg-amber-50 border-amber-400 text-amber-900' :
+                    evt.category === 'holiday' ? 'bg-purple-50 border-purple-400 text-purple-900' :
+                      'bg-blue-50 border-blue-400 text-blue-900'
+                  }`}
+              >
+                <span className="opacity-70 text-[9px] mt-0.5">●</span>
+                <span>{evt.title}</span>
+              </div>
+            ))}
+
+            {dayTasks.map(task => (
+              <MonthTaskItem
+                key={task.id}
+                task={task}
+                dateStr={dateStr}
+                readOnly={readOnly}
+                editingTaskId={editingTaskId}
+                draggedTaskId={draggedTaskId}
+                handleDragStart={handleDragStart}
+                handleDropOnTask={handleDropOnTask}
+                setEditingTaskId={setEditingTaskId}
+                setEditingTaskText={setEditingTaskText}
+                editingTaskText={editingTaskText}
+                setEditingTaskTextValue={setEditingTaskTextValue}
+                onEditKeyDown={onEditKeyDown}
+                handleSaveEdit={handleSaveEdit}
+                toggleTask={toggleTask}
+                copyTaskToNextDay={copyTaskToNextDay}
+                removeTask={removeTask}
+                editInputRef={editInputRef}
+              />
+            ))}
+
+            {editingDay === dateStr && !readOnly ? (
+              <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={newTaskText}
+                  onChange={(e) => setNewTaskText(e.target.value)}
+                  onKeyDown={(e) => onKeyDown(e, dateStr)}
+                  onBlur={() => handleAddTask(dateStr)}
+                  placeholder="New Task..."
+                  className="w-full text-[11px] py-1.5 px-2 border-b-2 border-black focus:ring-0 focus:outline-none bg-white font-bold"
+                />
+              </div>
+            ) : (
+              !editingTaskId && !readOnly && (
+                <div className="h-6 flex items-center justify-center opacity-0 group-hover:opacity-40 text-[8px] font-black uppercase text-gray-400 mt-2 cursor-pointer border border-dashed border-gray-200 rounded pointer-events-none">
+                  + Task
+                </div>
+              )
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+});
+
+const isDateInRange = (dateStr: string, start?: string, end?: string) => {
+  if (!start || !end) return false;
+  const s = start < end ? start : end;
+  const e = start < end ? end : start;
+  return dateStr >= s && dateStr <= e;
+};
 
 const MonthFocus: React.FC<MonthFocusProps> = ({
   year, monthIndex, tasksByDate, colorKeys, preloadedEvents = [], onUpdateTasks, onUpdateMeta, activeKeyId, readOnly = false
@@ -47,7 +316,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     }
   }, [editingTaskId]);
 
-  const handleAddTask = (date: string) => {
+  const handleAddTask = useCallback((date: string) => {
     if (!newTaskText.trim()) {
       setEditingDay(null);
       return;
@@ -61,9 +330,9 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     onUpdateTasks(date, [...currentTasks, newTask]);
     setNewTaskText("");
     setEditingDay(date);
-  };
+  }, [newTaskText, tasksByDate, onUpdateTasks]);
 
-  const handleSaveEdit = (date: string) => {
+  const handleSaveEdit = useCallback((date: string) => {
     if (!editingTaskId) return;
     const currentTasks = tasksByDate[date]?.tasks || [];
     if (!editingTaskText.trim()) {
@@ -76,54 +345,54 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     }
     setEditingTaskId(null);
     setEditingTaskText("");
-  };
+  }, [editingTaskId, editingTaskText, tasksByDate, onUpdateTasks]);
 
-  const onKeyDown = (e: React.KeyboardEvent, date: string) => {
+  const onKeyDown = useCallback((e: React.KeyboardEvent, date: string) => {
     if (e.key === 'Enter') handleAddTask(date);
     if (e.key === 'Escape') setEditingDay(null);
-  };
+  }, [handleAddTask]);
 
-  const onEditKeyDown = (e: React.KeyboardEvent, date: string) => {
+  const onEditKeyDown = useCallback((e: React.KeyboardEvent, date: string) => {
     if (e.key === 'Enter') handleSaveEdit(date);
     if (e.key === 'Escape') {
       setEditingTaskId(null);
       setEditingTaskText("");
     }
-  };
+  }, [handleSaveEdit]);
 
-  const toggleTask = (date: string, taskId: string) => {
+  const toggleTaskCallback = useCallback((date: string, taskId: string) => {
     const currentTasks = tasksByDate[date]?.tasks || [];
     const updated = currentTasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
     onUpdateTasks(date, updated);
-  };
+  }, [tasksByDate, onUpdateTasks]);
 
-  const removeTask = (date: string, taskId: string) => {
+  const removeTaskCallback = useCallback((date: string, taskId: string) => {
     const currentTasks = tasksByDate[date]?.tasks || [];
     onUpdateTasks(date, currentTasks.filter(t => t.id !== taskId));
-  };
+  }, [tasksByDate, onUpdateTasks]);
 
-  const copyTaskToNextDay = (date: string, task: Task) => {
+  const copyTaskToNextDayCallback = useCallback((date: string, task: Task) => {
     const currentDate = new Date(date + 'T00:00:00');
     currentDate.setDate(currentDate.getDate() + 1);
     const nextDateStr = currentDate.toISOString().split('T')[0];
     const nextTasks = tasksByDate[nextDateStr]?.tasks || [];
     const newTask = { ...task, id: Math.random().toString(36).substr(2, 9), completed: false };
     onUpdateTasks(nextDateStr, [...nextTasks, newTask]);
-  };
+  }, [tasksByDate, onUpdateTasks]);
 
-  const handleDragStart = (e: React.DragEvent, date: string, taskId: string) => {
+  const handleDragStartCallback = useCallback((e: React.DragEvent, date: string, taskId: string) => {
     if (editingTaskId) return;
     setDraggedTaskId(taskId);
     setDraggedSourceDate(date);
     e.dataTransfer.effectAllowed = 'move';
-  };
+  }, [editingTaskId]);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOverCallback = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-  };
+  }, []);
 
-  const handleDropOnDay = (e: React.DragEvent, targetDate: string) => {
+  const handleDropOnDayCallback = useCallback((e: React.DragEvent, targetDate: string) => {
     e.preventDefault();
     if (!draggedTaskId || !draggedSourceDate || draggedSourceDate === targetDate) return;
     const sourceTasks = tasksByDate[draggedSourceDate]?.tasks || [];
@@ -134,9 +403,9 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     onUpdateTasks(targetDate, [...targetTasks, taskToMove]);
     setDraggedTaskId(null);
     setDraggedSourceDate(null);
-  };
+  }, [draggedTaskId, draggedSourceDate, tasksByDate, onUpdateTasks]);
 
-  const handleDropOnTask = (e: React.DragEvent, targetDate: string, targetTaskId: string) => {
+  const handleDropOnTaskCallback = useCallback((e: React.DragEvent, targetDate: string, targetTaskId: string) => {
     e.stopPropagation();
     e.preventDefault();
     if (!draggedTaskId || !draggedSourceDate) return;
@@ -159,22 +428,15 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     }
     setDraggedTaskId(null);
     setDraggedSourceDate(null);
-  };
+  }, [draggedTaskId, draggedSourceDate, tasksByDate, onUpdateTasks]);
 
-  const isDateInRange = (dateStr: string, start?: string, end?: string) => {
-    if (!start || !end) return false;
-    const s = start < end ? start : end;
-    const e = start < end ? end : start;
-    return dateStr >= s && dateStr <= e;
-  };
-
-  const getDayHighlight = (dateStr: string) => {
+  const getDayHighlight = useCallback((dateStr: string) => {
     const activeKey = colorKeys.find(key => isDateInRange(dateStr, key.startDate, key.endDate));
     if (!activeKey) return null;
     const baseColorClass = activeKey.color;
     const borderColorClass = activeKey.color.replace('bg-', 'border-');
     return { baseColorClass, borderColorClass };
-  };
+  }, [colorKeys]);
 
   const currentMonthKeys = colorKeys.filter(key => {
     if (!key.startDate || !key.endDate || !key.label.trim()) return false;
@@ -211,144 +473,44 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
           const dayTasks = tasksByDate[dateStr]?.tasks || [];
           const dayEvents = preloadedEvents.filter(e => e.date === dateStr);
           const highlight = isDay ? getDayHighlight(dateStr) : null;
-
-          // Calculate weekday for mobile view
           const weekDayName = WEEKDAYS[i % 7];
 
           return (
-            <div
+            <MonthDayCell
               key={i}
-              onClick={() => !readOnly && isDay && !editingTaskId && setEditingDay(dateStr)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => !readOnly && isDay && handleDropOnDay(e, dateStr)}
-              className={`min-h-[120px] md:min-h-[160px] p-2 transition-all relative group flex flex-col ${isDay ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 hidden md:flex' // Hide empty cells on mobile
-                } ${isToday ? 'ring-4 ring-blue-500 ring-inset z-10' : ''}`}
-            >
-              {isDay && (
-                <>
-                  {/* Strategic Highlight Overlay - using manual very low opacity for elegance */}
-                  {highlight && (
-                    <div
-                      className={`absolute inset-0 ${highlight.baseColorClass} border-y-2 ${highlight.borderColorClass} pointer-events-none z-0`}
-                      style={{ opacity: 0.05 }}
-                    />
-                  )}
-
-                  <div className="flex justify-between items-center mb-2 z-10 relative pointer-events-none">
-                    <div className="flex items-baseline gap-2">
-                      <span className={`text-base font-black ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
-                        {dayNum}
-                      </span>
-                      <span className="md:hidden text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        {weekDayName}
-                      </span>
-                    </div>
-                    {isToday && <span className="text-[7px] uppercase bg-blue-500 text-white px-1.5 py-0.5 rounded-full animate-pulse font-black">Today</span>}
-                  </div>
-
-                  <div className="space-y-1 flex-1 overflow-y-auto custom-scrollbar z-10 relative">
-                    {/* Preloaded Events (Strategic Meetings/Milestones) */}
-                    {dayEvents.map(evt => (
-                      <div 
-                        key={evt.id || Math.random()} 
-                        className={`flex items-start gap-1.5 py-1 px-1.5 rounded text-[10px] font-bold leading-tight mb-1 border-l-2 shadow-sm ${
-                          evt.category === 'milestone' ? 'bg-amber-50 border-amber-400 text-amber-900' : 
-                          evt.category === 'holiday' ? 'bg-purple-50 border-purple-400 text-purple-900' : 
-                          'bg-blue-50 border-blue-400 text-blue-900'
-                        }`}
-                      >
-                         <span className="opacity-70 text-[9px] mt-0.5">●</span>
-                         <span>{evt.title}</span>
-                      </div>
-                    ))}
-
-                    {dayTasks.map(task => (
-                      <div
-                        key={task.id}
-                        draggable={!readOnly && !editingTaskId}
-                        onDragStart={(e) => !readOnly && handleDragStart(e, dateStr, task.id)}
-                        onDrop={(e) => !readOnly && handleDropOnTask(e, dateStr, task.id)}
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          if (!readOnly) {
-                            setEditingTaskId(task.id);
-                            setEditingTaskText(task.text);
-                          }
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`flex items-center gap-1.5 group/task relative py-1 px-1.5 rounded border border-transparent hover:border-black/5 hover:bg-white/80 transition-all ${!readOnly ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedTaskId === task.id ? 'opacity-30' : ''} ${editingTaskId === task.id ? 'bg-white shadow-sm ring-1 ring-black/5 z-20' : ''}`}
-                      >
-                        {editingTaskId === task.id ? (
-                          <input
-                            ref={editInputRef}
-                            type="text"
-                            value={editingTaskText}
-                            onChange={(e) => setEditingTaskText(e.target.value)}
-                            onKeyDown={(e) => onEditKeyDown(e, dateStr)}
-                            onBlur={() => handleSaveEdit(dateStr)}
-                            className="w-full text-[11px] font-bold p-0 border-none focus:ring-0 bg-transparent"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <>
-                            <input
-                              type="checkbox"
-                              checked={task.completed}
-                              disabled={readOnly}
-                              onChange={() => toggleTask(dateStr, task.id)}
-                              className="h-3.5 w-3.5 rounded-sm border-gray-400 text-black focus:ring-black cursor-pointer z-10 shrink-0 disabled:opacity-50"
-                            />
-                            <span className={`text-[11px] leading-tight flex-1 transition-all ${task.completed ? 'line-through text-gray-400' : 'text-gray-800 font-bold'}`}>
-                              {task.text}
-                            </span>
-
-                            {!readOnly && (
-                              <div className="flex gap-0.5 opacity-0 group-hover/task:opacity-100 transition-all">
-                                <button
-                                  onClick={() => copyTaskToNextDay(dateStr, task)}
-                                  title="Duplicate"
-                                  className="p-1 hover:bg-green-50 text-green-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-                                </button>
-                                <button
-                                  onClick={() => removeTask(dateStr, task.id)}
-                                  title="Delete"
-                                  className="p-1 hover:bg-red-50 text-red-500 rounded-full flex items-center justify-center bg-white shadow-sm border border-gray-100 active:scale-90"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-
-                    {editingDay === dateStr && !readOnly ? (
-                      <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          ref={inputRef}
-                          type="text"
-                          value={newTaskText}
-                          onChange={(e) => setNewTaskText(e.target.value)}
-                          onKeyDown={(e) => onKeyDown(e, dateStr)}
-                          onBlur={() => handleAddTask(dateStr)}
-                          placeholder="New Task..."
-                          className="w-full text-[11px] py-1.5 px-2 border-b-2 border-black focus:ring-0 focus:outline-none bg-white font-bold"
-                        />
-                      </div>
-                    ) : (
-                      !editingTaskId && !readOnly && (
-                        <div className="h-6 flex items-center justify-center opacity-0 group-hover:opacity-40 text-[8px] font-black uppercase text-gray-400 mt-2 cursor-pointer border border-dashed border-gray-200 rounded pointer-events-none">
-                          + Task
-                        </div>
-                      )
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+              dayNum={dayNum}
+              isDay={isDay}
+              dateStr={dateStr}
+              isToday={isToday}
+              dayTasks={dayTasks}
+              dayEvents={dayEvents}
+              highlight={highlight}
+              readOnly={readOnly}
+              editingDay={editingDay}
+              editingTaskId={editingTaskId}
+              draggedTaskId={draggedTaskId}
+              newTaskText={newTaskText}
+              setEditingDay={setEditingDay}
+              setNewTaskText={setNewTaskText}
+              onKeyDown={onKeyDown}
+              handleAddTask={handleAddTask}
+              handleDragOver={handleDragOverCallback}
+              handleDropOnDay={handleDropOnDayCallback}
+              handleDragStart={handleDragStartCallback}
+              handleDropOnTask={handleDropOnTaskCallback}
+              setEditingTaskId={setEditingTaskId}
+              setEditingTaskText={setEditingTaskText}
+              editingTaskText={editingTaskText}
+              setEditingTaskTextValue={setEditingTaskText}
+              onEditKeyDown={onEditKeyDown}
+              handleSaveEdit={handleSaveEdit}
+              toggleTask={toggleTaskCallback}
+              copyTaskToNextDay={copyTaskToNextDayCallback}
+              removeTask={removeTaskCallback}
+              inputRef={inputRef}
+              editInputRef={editInputRef}
+              weekDayName={weekDayName}
+            />
           );
         })}
       </div>

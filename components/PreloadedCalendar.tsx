@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import { MONTH_NAMES, WEEKDAY_INITIALS, PreloadedEvent } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -12,6 +12,158 @@ interface PreloadedCalendarProps {
   userId?: string;
   readOnly?: boolean;
 }
+
+const CalendarDay = memo(({
+  dayNumber,
+  isActualDay,
+  isWeekend,
+  dateStr,
+  dayEvents,
+  handleDayClick,
+  handleEditClick,
+  handleDeleteClick,
+  getGCalLink,
+  readOnly
+}: {
+  dayNumber: number;
+  isActualDay: boolean;
+  isWeekend: boolean;
+  dateStr: string;
+  dayEvents: PreloadedEvent[];
+  handleDayClick: (dateStr: string) => void;
+  handleEditClick: (event: PreloadedEvent) => void;
+  handleDeleteClick: (event: PreloadedEvent) => void;
+  getGCalLink: (event: PreloadedEvent) => string;
+  readOnly: boolean;
+}) => {
+  const hasEvent = dayEvents.length > 0;
+
+  return (
+    <div
+      className={`aspect-square flex items-center justify-center relative ${isActualDay ? 'cursor-pointer' : 'pointer-events-none'}`}
+      onClick={() => isActualDay && handleDayClick(dateStr)}
+    >
+      {isActualDay && (
+        <>
+          <div
+            className={`w-[85%] h-[85%] flex items-center justify-center text-[9px] md:text-[11px] font-medium rounded-sm transition-all duration-300 relative ${hasEvent ? 'bg-black text-white shadow-lg scale-110 z-10 font-bold' : isWeekend ? 'text-gray-500 bg-gray-300/30 hover:bg-gray-300/50' : 'text-gray-500 bg-gray-50 hover:bg-gray-100'}`}
+          >
+            {dayNumber}
+            {hasEvent && (
+              <div className="absolute bottom-0.5 w-1 h-1 bg-white rounded-full"></div>
+            )}
+          </div>
+
+          {hasEvent && (
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white shadow-2xl rounded-md border border-gray-100 p-3 z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity" onClick={(e) => e.stopPropagation()}>
+              {dayEvents.map((e, idx) => (
+                <div key={idx} className="mb-3 last:mb-0 group/event">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="font-black uppercase text-[7px] text-blue-600 tracking-widest">{e.category}</span>
+                    {!readOnly && (
+                      <div className="flex gap-1 opacity-0 group-hover/event:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleEditClick(e)}
+                          className="text-gray-400 hover:text-blue-500"
+                          title="Edit"
+                        >
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(e)}
+                          className="text-gray-400 hover:text-red-500"
+                          title="Delete"
+                        >
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-gray-900 font-bold block mb-2">{e.title}</span>
+                  <a
+                    href={getGCalLink(e)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 hover:bg-blue-50 text-[8px] font-black uppercase text-gray-500 hover:text-blue-600 rounded border border-gray-100 transition-colors"
+                  >
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19,4H18V2H16V4H8V2H6V4H5C3.89,4 3,4.9 3,6V20C3,21.1 3.89,22 5,22H19C20.1,22 21,21.1 21,20V6C21,4.9 20.1,4 19,4M19,20H5V10H19V20M9,14H7V12H9V14M13,14H11V12H13V14M17,14H15V12H17V14M9,18H7V16H9V18M13,18H11V16H13V18M17,18H15V16H17V18Z" /></svg>
+                    Sync Milestone
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {isWeekend && (
+        <div className="absolute inset-y-0 w-full bg-gray-100/40 -z-10" />
+      )}
+    </div>
+  );
+});
+
+const CalendarMonthRow = memo(({
+  month,
+  mIdx,
+  year,
+  COLUMNS,
+  eventsByDate,
+  handleDayClick,
+  handleEditClick,
+  handleDeleteClick,
+  getGCalLink,
+  readOnly
+}: {
+  month: string;
+  mIdx: number;
+  year: number;
+  COLUMNS: number;
+  eventsByDate: Record<string, PreloadedEvent[]>;
+  handleDayClick: (dateStr: string) => void;
+  handleEditClick: (event: PreloadedEvent) => void;
+  handleDeleteClick: (event: PreloadedEvent) => void;
+  getGCalLink: (event: PreloadedEvent) => string;
+  readOnly: boolean;
+}) => {
+  const firstDay = new Date(year, mIdx, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, mIdx + 1, 0).getDate();
+
+  return (
+    <div className="flex items-center group relative h-8 md:h-10">
+      <div className="w-16 md:w-20 shrink-0 text-right pr-3 md:pr-4 text-[9px] md:text-xs font-bold text-gray-300 tracking-tight uppercase truncate">
+        {month.substring(0, 3)}
+      </div>
+
+      <div className="grid grid-cols-[repeat(37,minmax(0,1fr))] flex-1 h-full items-center">
+        {Array.from({ length: COLUMNS }).map((_, colIdx) => {
+          const dayNumber = colIdx - startOffset + 1;
+          const isActualDay = dayNumber > 0 && dayNumber <= daysInMonth;
+          const isWeekend = colIdx % 7 === 5 || colIdx % 7 === 6;
+          const dateStr = `${year}-${String(mIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
+          const dayEvents = isActualDay ? eventsByDate[dateStr] || [] : [];
+
+          return (
+            <CalendarDay
+              key={colIdx}
+              dayNumber={dayNumber}
+              isActualDay={isActualDay}
+              isWeekend={isWeekend}
+              dateStr={dateStr}
+              dayEvents={dayEvents}
+              handleDayClick={handleDayClick}
+              handleEditClick={handleEditClick}
+              handleDeleteClick={handleDeleteClick}
+              getGCalLink={getGCalLink}
+              readOnly={readOnly}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onAddEvent, onUpdateEvent, onDeleteEvent, onClearEvents, userId, readOnly = false }) => {
   const COLUMNS = 37;
@@ -34,7 +186,7 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
 
   const generateICSContent = () => {
     let icsContent = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Stoke Planner//EN\nCALSCALE:GREGORIAN\nMETHOD:PUBLISH\n";
-    
+
     events.forEach(e => {
       const date = e.date.replace(/-/g, '');
       icsContent += "BEGIN:VEVENT\n";
@@ -104,7 +256,16 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
     }
   };
 
-  const handleDayClick = (dateStr: string) => {
+  const eventsByDate = useMemo(() => {
+    const map: Record<string, PreloadedEvent[]> = {};
+    events.forEach(e => {
+      if (!map[e.date]) map[e.date] = [];
+      map[e.date].push(e);
+    });
+    return map;
+  }, [events]);
+
+  const handleDayClick = useCallback((dateStr: string) => {
     if (readOnly || !onAddEvent) return;
     setSelectedDate(dateStr);
     setEditingEvent(null);
@@ -112,9 +273,9 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
     setNewEventTitle('');
     setNewEventCategory('milestone');
     setIsModalOpen(true);
-  };
+  }, [readOnly, onAddEvent]);
 
-  const handleEditClick = (event: PreloadedEvent) => {
+  const handleEditClick = useCallback((event: PreloadedEvent) => {
     if (readOnly) return;
     setEditingEvent(event);
     setSelectedDate(event.date);
@@ -122,30 +283,30 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
     setNewEventTitle(event.title);
     setNewEventCategory(event.category);
     setIsModalOpen(true);
-  };
+  }, [readOnly]);
 
-  const handleDeleteClick = (event: PreloadedEvent) => {
+  const handleDeleteClick = useCallback((event: PreloadedEvent) => {
     if (onDeleteEvent && window.confirm(`Are you sure you want to delete "${event.title}"?`)) {
-        onDeleteEvent(event);
+      onDeleteEvent(event);
     }
-  };
+  }, [onDeleteEvent]);
 
   const handleSaveEvent = () => {
     if (!newEventTitle || !newEventDate) return;
 
     if (editingEvent && onUpdateEvent) {
-        onUpdateEvent(editingEvent, {
-            ...editingEvent,
-            date: newEventDate,
-            title: newEventTitle,
-            category: newEventCategory,
-        });
+      onUpdateEvent(editingEvent, {
+        ...editingEvent,
+        date: newEventDate,
+        title: newEventTitle,
+        category: newEventCategory,
+      });
     } else if (onAddEvent) {
-        onAddEvent({
-            date: newEventDate,
-            title: newEventTitle,
-            category: newEventCategory,
-        });
+      onAddEvent({
+        date: newEventDate,
+        title: newEventTitle,
+        category: newEventCategory,
+      });
     }
     setIsModalOpen(false);
   };
@@ -183,94 +344,21 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
   };
 
   const renderMonthRows = () => {
-    return MONTH_NAMES.map((month, mIdx) => {
-      const { startOffset, daysInMonth } = getMonthData(mIdx);
-      
-      return (
-        <div key={month} className="flex items-center group relative h-8 md:h-10">
-          <div className="w-16 md:w-20 shrink-0 text-right pr-3 md:pr-4 text-[9px] md:text-xs font-bold text-gray-300 tracking-tight uppercase truncate">
-            {month.substring(0, 3)}
-          </div>
-
-          <div className="grid grid-cols-[repeat(37,minmax(0,1fr))] flex-1 h-full items-center">
-            {Array.from({ length: COLUMNS }).map((_, colIdx) => {
-              const dayNumber = colIdx - startOffset + 1;
-              const isActualDay = dayNumber > 0 && dayNumber <= daysInMonth;
-              const isWeekend = colIdx % 7 === 5 || colIdx % 7 === 6;
-              
-              const dateStr = `${year}-${String(mIdx + 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
-              const dayEvents = events.filter(e => e.date === dateStr);
-              const hasEvent = dayEvents.length > 0;
-
-              return (
-                <div 
-                  key={colIdx} 
-                  className={`aspect-square flex items-center justify-center relative ${isActualDay ? 'cursor-pointer' : 'pointer-events-none'}`}
-                  onClick={() => isActualDay && handleDayClick(dateStr)}
-                >
-                  {isActualDay && (
-                    <>
-                      <div 
-                        className={`w-[85%] h-[85%] flex items-center justify-center text-[9px] md:text-[11px] font-medium rounded-sm transition-all duration-300 relative ${hasEvent ? 'bg-black text-white shadow-lg scale-110 z-10 font-bold' : isWeekend ? 'text-gray-500 bg-gray-300/30 hover:bg-gray-300/50' : 'text-gray-500 bg-gray-50 hover:bg-gray-100'}`}
-                      >
-                        {dayNumber}
-                        {hasEvent && (
-                           <div className="absolute bottom-0.5 w-1 h-1 bg-white rounded-full"></div>
-                        )}
-                      </div>
-                      
-                      {hasEvent && (
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-44 bg-white shadow-2xl rounded-md border border-gray-100 p-3 z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity" onClick={(e) => e.stopPropagation()}>
-                          {dayEvents.map((e, idx) => (
-                            <div key={idx} className="mb-3 last:mb-0 group/event">
-                              <div className="flex items-center justify-between mb-0.5">
-                                <span className="font-black uppercase text-[7px] text-blue-600 tracking-widest">{e.category}</span>
-                                {!readOnly && (
-                                  <div className="flex gap-1 opacity-0 group-hover/event:opacity-100 transition-opacity">
-                                      <button 
-                                          onClick={() => handleEditClick(e)}
-                                          className="text-gray-400 hover:text-blue-500"
-                                          title="Edit"
-                                      >
-                                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                      </button>
-                                      <button 
-                                          onClick={() => handleDeleteClick(e)}
-                                          className="text-gray-400 hover:text-red-500"
-                                          title="Delete"
-                                      >
-                                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                      </button>
-                                  </div>
-                                )}
-                              </div>
-                              <span className="text-[10px] text-gray-900 font-bold block mb-2">{e.title}</span>
-                              <a 
-                                href={getGCalLink(e)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 hover:bg-blue-50 text-[8px] font-black uppercase text-gray-500 hover:text-blue-600 rounded border border-gray-100 transition-colors"
-                              >
-                                <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19,4H18V2H16V4H8V2H6V4H5C3.89,4 3,4.9 3,6V20C3,21.1 3.89,22 5,22H19C20.1,22 21,21.1 21,20V6C21,4.9 20.1,4 19,4M19,20H5V10H19V20M9,14H7V12H9V14M13,14H11V12H13V14M17,14H15V12H17V14M9,18H7V16H9V18M13,18H11V16H13V18M17,18H15V16H17V18Z"/></svg>
-                                Sync Milestone
-                              </a>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  
-                  {isWeekend && (
-                    <div className="absolute inset-y-0 w-full bg-gray-100/40 -z-10" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
-    });
+    return MONTH_NAMES.map((month, mIdx) => (
+      <CalendarMonthRow
+        key={month}
+        month={month}
+        mIdx={mIdx}
+        year={year}
+        COLUMNS={COLUMNS}
+        eventsByDate={eventsByDate}
+        handleDayClick={handleDayClick}
+        handleEditClick={handleEditClick}
+        handleDeleteClick={handleDeleteClick}
+        getGCalLink={getGCalLink}
+        readOnly={readOnly}
+      />
+    ));
   };
 
   return (
@@ -283,27 +371,27 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
             </p>
             <div className="mt-4 flex gap-4 no-print flex-col items-start">
               <div className="flex gap-4">
-                <button 
-                  onClick={publishToWeb} 
+                <button
+                  onClick={publishToWeb}
                   title="Publish & Subscribe (Webcal)"
                   disabled={isPublishing || events.length === 0}
                   className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-30 ${isPublishing ? 'cursor-wait' : ''}`}
                 >
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M16,5V11H21V5M10,11H15V5H10M16,18H21V12H16M10,18H15V12H10M4,18H9V12H4M4,11H9V5H4V11Z"/></svg>
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M16,5V11H21V5M10,11H15V5H10M16,18H21V12H16M10,18H15V12H10M4,18H9V12H4M4,11H9V5H4V11Z" /></svg>
                   Publish & Subscribe
                 </button>
 
-                <button 
+                <button
                   onClick={exportAllToICal}
                   disabled={events.length === 0}
                   className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-all disabled:opacity-30 active:scale-95"
                 >
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" /></svg>
                   Export Map (.ics)
                 </button>
-                
+
                 {onClearEvents && events.length > 0 && !readOnly && (
-                  <button 
+                  <button
                     onClick={() => {
                       if (window.confirm('Are you sure you want to clear all events from the calendar?')) {
                         onClearEvents();
@@ -311,29 +399,29 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-white text-red-500 border border-red-200 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all active:scale-95"
                   >
-                     Clear Map
+                    Clear Map
                   </button>
                 )}
               </div>
 
-               {/* URL Display Area */}
+              {/* URL Display Area */}
               {calendarUrl && (
                 <div className="bg-gray-50 p-3 border border-gray-100 rounded-lg w-full max-w-lg mt-2 animate-in fade-in slide-in-from-top-2">
                   <p className="text-[9px] font-bold uppercase text-gray-500 mb-1">Calendar Published!</p>
                   <div className="flex items-center gap-2">
-                    <input 
-                      readOnly 
-                      value={calendarUrl} 
+                    <input
+                      readOnly
+                      value={calendarUrl}
                       className="flex-1 text-[10px] bg-white border border-gray-200 p-1.5 rounded text-gray-600 focus:outline-none"
                     />
-                    <button 
+                    <button
                       onClick={copyToClipboard}
                       className="p-1.5 bg-black text-white rounded hover:bg-gray-800 transition-colors"
                       title="Copy URL"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
                     </button>
-                    <button 
+                    <button
                       onClick={() => setCalendarUrl(null)}
                       className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
                       title="Close"
@@ -364,7 +452,7 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
         <div className="mt-16 flex flex-wrap justify-center gap-4 md:gap-12 no-print border-t border-gray-50 pt-8 opacity-60 hover:opacity-100 transition-opacity">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-black rounded-sm relative flex items-center justify-center">
-                <div className="w-1 h-1 bg-white rounded-full absolute bottom-0.5"></div>
+              <div className="w-1 h-1 bg-white rounded-full absolute bottom-0.5"></div>
             </div>
             <span className="text-[9px] text-gray-500 uppercase tracking-[0.2em] font-black">Strategic Milestone</span>
           </div>
@@ -384,14 +472,14 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm border border-gray-100">
             <h3 className="text-lg font-black uppercase tracking-tight mb-4">
-                {editingEvent ? 'Edit Strategy Event' : 'Add Strategy Event'}
+              {editingEvent ? 'Edit Strategy Event' : 'Add Strategy Event'}
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Date</label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   value={newEventDate}
                   onChange={(e) => setNewEventDate(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
@@ -400,8 +488,8 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
 
               <div>
                 <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Event Title</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newEventTitle}
                   onChange={(e) => setNewEventTitle(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
@@ -409,10 +497,10 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
                   autoFocus
                 />
               </div>
-              
+
               <div>
                 <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Category</label>
-                <select 
+                <select
                   value={newEventCategory}
                   onChange={(e) => setNewEventCategory(e.target.value as PreloadedEvent['category'])}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
@@ -427,13 +515,13 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
             </div>
 
             <div className="mt-6 flex gap-3">
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
                 className="flex-1 px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-500 hover:bg-gray-50 rounded transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleSaveEvent}
                 disabled={!newEventTitle.trim() || !newEventDate}
                 className="flex-1 px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-widest rounded hover:bg-gray-800 transition-colors disabled:opacity-50"
