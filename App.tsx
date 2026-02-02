@@ -788,11 +788,13 @@ const App: React.FC = () => {
             isOpen={isCollaborationModalOpen}
             onClose={() => setIsCollaborationModalOpen(false)}
             currentUserEmail={session?.user.email}
-        currentPlanId={currentPlan?.id}
-      />
-      </div>
-    </ErrorBoundary>
-  );
+            currentPlanId={currentPlan?.id}
+          />
+        )}
+      </Suspense>
+    </div>
+  </ErrorBoundary>
+);
 };
 
 export default App;
