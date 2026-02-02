@@ -108,7 +108,7 @@ const MiniMonth = memo(({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-px bg-gray-200" onMouseLeave={() => !dragStart && onMouseEnter("")}>
+      <div className="grid grid-cols-7 gap-px bg-gray-200">
         {Array.from({ length: 35 }).map((_, i) => {
           const dayNum = i - startOffset + 1;
           const isDay = dayNum > 0 && dayNum <= daysInMonth;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, lazy } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseClient';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS, Collaborator, Plan } from './types';
 import { generateYearlyPlan } from './services/geminiService';
 
@@ -482,16 +483,19 @@ const App: React.FC = () => {
 
   if (!session && !isReadOnly) {
     return (
-      <Suspense fallback={<LoadingFallback />}>
-        <Landing />
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingFallback />}>
+          <Landing />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-['Inter'] select-none">
-      {/* Universal Navigation */}
-      <header className="no-print bg-black text-white sticky top-0 z-[60] shadow-lg">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gray-50 flex flex-col font-['Inter'] select-none">
+        {/* Universal Navigation */}
+        <header className="no-print bg-black text-white sticky top-0 z-[60] shadow-lg">
         <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-3 flex flex-col md:flex-row items-center gap-4">
           <div className="flex items-center gap-6">
             <div
@@ -784,11 +788,10 @@ const App: React.FC = () => {
             isOpen={isCollaborationModalOpen}
             onClose={() => setIsCollaborationModalOpen(false)}
             currentUserEmail={session?.user.email}
-            currentPlanId={currentPlan?.id}
-          />
-        )}
-      </Suspense>
-    </div>
+        currentPlanId={currentPlan?.id}
+      />
+      </div>
+    </ErrorBoundary>
   );
 };
 
