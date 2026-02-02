@@ -2,18 +2,12 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { MONTH_NAMES, ColorKey, PRESET_COLORS, RiceProject } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { usePlanStore } from '../store/usePlanStore';
 
 interface DashboardProps {
   year: number;
   onMonthClick: (monthIndex: number) => void;
-  tasksByDate: Record<string, any>;
-  colorKeys: ColorKey[];
-  onUpdateKeys: (keys: ColorKey[]) => void;
-  activeKeyId: string | null;
-  setActiveKeyId: (id: string | null) => void;
-  riceProjects?: RiceProject[];
   userId?: string;
-  planId?: string;
   readOnly?: boolean;
 }
 
@@ -70,8 +64,8 @@ const MiniMonth = memo(({
   highlightMap,
   tasksByDate,
   dragStart,
-  dragCurrent, // [NEW] Accept dragCurrent
-  previewColor, // [NEW] Accept previewColor
+  dragCurrent,
+  previewColor,
   onMouseDown,
   onMouseEnter,
   onMouseUp
@@ -83,8 +77,8 @@ const MiniMonth = memo(({
   highlightMap: Record<string, string | null>;
   tasksByDate: Record<string, any>;
   dragStart: string | null;
-  dragCurrent: string | null; // [NEW] Type definition
-  previewColor: string | null; // [NEW] Type definition
+  dragCurrent: string | null;
+  previewColor: string | null;
   onMouseDown: (dateStr: string) => void;
   onMouseEnter: (dateStr: string) => void;
   onMouseUp: () => void;
@@ -115,7 +109,6 @@ const MiniMonth = memo(({
           const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
           const isToday = dateStr === todayStr;
 
-          // [OPTIMIZATION] Calculate drag highlight locally
           let highlightColor = isDay ? highlightMap[dateStr] : null;
           if (isDay && dragStart && dragCurrent && previewColor && isDateInRange(dateStr, dragStart, dragCurrent)) {
             highlightColor = previewColor;
@@ -144,8 +137,18 @@ const MiniMonth = memo(({
 });
 
 const Dashboard: React.FC<DashboardProps> = ({
-  year, onMonthClick, tasksByDate, colorKeys, onUpdateKeys, activeKeyId, setActiveKeyId, riceProjects = [], userId, planId, readOnly = false
+  year, onMonthClick, userId, readOnly = false
 }) => {
+  const { 
+    tasksByDate, 
+    colorKeys, 
+    riceProjects, 
+    activeKeyId,
+    currentPlanId, 
+    updateColorKeys, 
+    setActiveKeyId 
+  } = usePlanStore();
+
   const [dragStart, setDragStart] = useState<string | null>(null);
   const [dragCurrent, setDragCurrent] = useState<string | null>(null);
   const [openColorPicker, setOpenColorPicker] = useState<string | null>(null);
@@ -156,6 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -215,8 +219,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       const icsContent = generateICSContent();
       const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
       // Use planId if available for unique filenames per plan, otherwise fallback to user/year
-      const fileName = planId
-        ? `${userId}/${planId}_${year}.ics`
+      const fileName = currentPlanId
+        ? `${userId}/${currentPlanId}_${year}.ics`
         : `${userId}/war_map_${year}.ics`;
 
       // Upload to Supabase Storage
@@ -338,7 +342,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       const e = dragStart < dragCurrent ? dragCurrent : dragStart;
 
       if (activeKeyId) {
-        onUpdateKeys(colorKeys.map(k => k.id === activeKeyId ? {
+        updateColorKeys(colorKeys.map(k => k.id === activeKeyId ? {
           ...k,
           startDate: s,
           endDate: e
@@ -352,16 +356,16 @@ const Dashboard: React.FC<DashboardProps> = ({
           startDate: s,
           endDate: e
         };
-        onUpdateKeys([...colorKeys, newKey]);
+        updateColorKeys([...colorKeys, newKey]);
         setActiveKeyId(null);
       }
     }
     setDragStart(null);
     setDragCurrent(null);
-  }, [dragStart, dragCurrent, activeKeyId, colorKeys, onUpdateKeys, setActiveKeyId]);
+  }, [dragStart, dragCurrent, activeKeyId, colorKeys, updateColorKeys, setActiveKeyId]);
 
   const handleKeyUpdate = (id: string, updates: Partial<ColorKey>) => {
-    onUpdateKeys(colorKeys.map(k => k.id === id ? { ...k, ...updates } : k));
+    updateColorKeys(colorKeys.map(k => k.id === id ? { ...k, ...updates } : k));
   };
 
   const handleAddKey = () => {
@@ -370,13 +374,13 @@ const Dashboard: React.FC<DashboardProps> = ({
       label: '',
       color: PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class,
     };
-    onUpdateKeys([...colorKeys, newKey]);
+    updateColorKeys([...colorKeys, newKey]);
     setActiveKeyId(newKey.id);
   };
 
   const handleRemoveKey = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    onUpdateKeys(colorKeys.filter(k => k.id !== id));
+    updateColorKeys(colorKeys.filter(k => k.id !== id));
     if (activeKeyId === id) setActiveKeyId(null);
   };
 
@@ -388,7 +392,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       startDate: project.startDate,
       endDate: project.endDate
     };
-    onUpdateKeys([...colorKeys, newKey]);
+    updateColorKeys([...colorKeys, newKey]);
     setActiveKeyId(newKey.id);
   };
 

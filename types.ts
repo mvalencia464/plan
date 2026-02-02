@@ -8,6 +8,8 @@ export interface Task {
 
 export interface DayData {
   tasks: Task[];
+  objectives?: string;
+  notes?: string;
 }
 
 export interface ColorKey {

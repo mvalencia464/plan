@@ -1,16 +1,11 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { MONTH_NAMES, WEEKDAYS, WEEKDAY_INITIALS, Task, ColorKey, PreloadedEvent } from '../types';
+import { usePlanStore } from '../store/usePlanStore';
 
 interface MonthFocusProps {
   year: number;
   monthIndex: number;
-  tasksByDate: Record<string, { tasks: Task[], objectives?: string, notes?: string }>;
-  colorKeys: ColorKey[];
-  preloadedEvents?: PreloadedEvent[];
-  onUpdateTasks: (date: string, tasks: Task[]) => void;
-  onUpdateMeta: (monthIndex: number, type: 'objectives' | 'notes', value: string) => void;
-  activeKeyId: string | null;
   readOnly?: boolean;
 }
 
@@ -284,8 +279,16 @@ const isDateInRange = (dateStr: string, start?: string, end?: string) => {
 };
 
 const MonthFocus: React.FC<MonthFocusProps> = ({
-  year, monthIndex, tasksByDate, colorKeys, preloadedEvents = [], onUpdateTasks, onUpdateMeta, activeKeyId, readOnly = false
+  year, monthIndex, readOnly = false
 }) => {
+  const { 
+    tasksByDate, 
+    colorKeys, 
+    preloadedEvents, 
+    updateTask, 
+    updateDayData 
+  } = usePlanStore();
+
   const [editingDay, setEditingDay] = useState<string | null>(null);
   const [newTaskText, setNewTaskText] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -302,6 +305,7 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
 
   useEffect(() => {
     if (editingDay && inputRef.current) {
@@ -327,25 +331,25 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
       text: newTaskText,
       completed: false
     };
-    onUpdateTasks(date, [...currentTasks, newTask]);
+    updateTask(date, [...currentTasks, newTask]);
     setNewTaskText("");
     setEditingDay(date);
-  }, [newTaskText, tasksByDate, onUpdateTasks]);
+  }, [newTaskText, tasksByDate, updateTask]);
 
   const handleSaveEdit = useCallback((date: string) => {
     if (!editingTaskId) return;
     const currentTasks = tasksByDate[date]?.tasks || [];
     if (!editingTaskText.trim()) {
-      onUpdateTasks(date, currentTasks.filter(t => t.id !== editingTaskId));
+      updateTask(date, currentTasks.filter(t => t.id !== editingTaskId));
     } else {
       const updated = currentTasks.map(t =>
         t.id === editingTaskId ? { ...t, text: editingTaskText } : t
       );
-      onUpdateTasks(date, updated);
+      updateTask(date, updated);
     }
     setEditingTaskId(null);
     setEditingTaskText("");
-  }, [editingTaskId, editingTaskText, tasksByDate, onUpdateTasks]);
+  }, [editingTaskId, editingTaskText, tasksByDate, updateTask]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent, date: string) => {
     if (e.key === 'Enter') handleAddTask(date);
@@ -363,13 +367,13 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
   const toggleTaskCallback = useCallback((date: string, taskId: string) => {
     const currentTasks = tasksByDate[date]?.tasks || [];
     const updated = currentTasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
-    onUpdateTasks(date, updated);
-  }, [tasksByDate, onUpdateTasks]);
+    updateTask(date, updated);
+  }, [tasksByDate, updateTask]);
 
   const removeTaskCallback = useCallback((date: string, taskId: string) => {
     const currentTasks = tasksByDate[date]?.tasks || [];
-    onUpdateTasks(date, currentTasks.filter(t => t.id !== taskId));
-  }, [tasksByDate, onUpdateTasks]);
+    updateTask(date, currentTasks.filter(t => t.id !== taskId));
+  }, [tasksByDate, updateTask]);
 
   const copyTaskToNextDayCallback = useCallback((date: string, task: Task) => {
     const currentDate = new Date(date + 'T00:00:00');
@@ -377,8 +381,8 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     const nextDateStr = currentDate.toISOString().split('T')[0];
     const nextTasks = tasksByDate[nextDateStr]?.tasks || [];
     const newTask = { ...task, id: Math.random().toString(36).substr(2, 9), completed: false };
-    onUpdateTasks(nextDateStr, [...nextTasks, newTask]);
-  }, [tasksByDate, onUpdateTasks]);
+    updateTask(nextDateStr, [...nextTasks, newTask]);
+  }, [tasksByDate, updateTask]);
 
   const handleDragStartCallback = useCallback((e: React.DragEvent, date: string, taskId: string) => {
     if (editingTaskId) return;
@@ -398,12 +402,12 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
     const sourceTasks = tasksByDate[draggedSourceDate]?.tasks || [];
     const taskToMove = sourceTasks.find(t => t.id === draggedTaskId);
     if (!taskToMove) return;
-    onUpdateTasks(draggedSourceDate, sourceTasks.filter(t => t.id !== draggedTaskId));
+    updateTask(draggedSourceDate, sourceTasks.filter(t => t.id !== draggedTaskId));
     const targetTasks = tasksByDate[targetDate]?.tasks || [];
-    onUpdateTasks(targetDate, [...targetTasks, taskToMove]);
+    updateTask(targetDate, [...targetTasks, taskToMove]);
     setDraggedTaskId(null);
     setDraggedSourceDate(null);
-  }, [draggedTaskId, draggedSourceDate, tasksByDate, onUpdateTasks]);
+  }, [draggedTaskId, draggedSourceDate, tasksByDate, updateTask]);
 
   const handleDropOnTaskCallback = useCallback((e: React.DragEvent, targetDate: string, targetTaskId: string) => {
     e.stopPropagation();
@@ -417,18 +421,18 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
       const targetIdx = updatedSource.findIndex(t => t.id === targetTaskId);
       const reordered = [...updatedSource];
       reordered.splice(targetIdx, 0, taskToMove);
-      onUpdateTasks(targetDate, reordered);
+      updateTask(targetDate, reordered);
     } else {
-      onUpdateTasks(draggedSourceDate, updatedSource);
+      updateTask(draggedSourceDate, updatedSource);
       const targetTasks = tasksByDate[targetDate]?.tasks || [];
       const targetIdx = targetTasks.findIndex(t => t.id === targetTaskId);
       const inserted = [...targetTasks];
       inserted.splice(targetIdx, 0, taskToMove);
-      onUpdateTasks(targetDate, inserted);
+      updateTask(targetDate, inserted);
     }
     setDraggedTaskId(null);
     setDraggedSourceDate(null);
-  }, [draggedTaskId, draggedSourceDate, tasksByDate, onUpdateTasks]);
+  }, [draggedTaskId, draggedSourceDate, tasksByDate, updateTask]);
 
   const getDayHighlight = useCallback((dateStr: string) => {
     const activeKey = colorKeys.find(key => isDateInRange(dateStr, key.startDate, key.endDate));
@@ -542,7 +546,11 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
             placeholder="Key targets for this month..."
             value={tasksByDate[`meta-${monthIndex}`]?.objectives || ""}
             readOnly={readOnly}
-            onChange={(e) => onUpdateMeta(monthIndex, 'objectives', e.target.value)}
+            onChange={(e) => {
+              const key = `meta-${monthIndex}`;
+              const currentData = tasksByDate[key] || { tasks: [] };
+              updateDayData(key, { ...currentData, objectives: e.target.value });
+            }}
           />
         </div>
         <div className="p-8">
@@ -552,7 +560,11 @@ const MonthFocus: React.FC<MonthFocusProps> = ({
             placeholder="Reflection, lessons, outcomes..."
             value={tasksByDate[`meta-${monthIndex}`]?.notes || ""}
             readOnly={readOnly}
-            onChange={(e) => onUpdateMeta(monthIndex, 'notes', e.target.value)}
+            onChange={(e) => {
+              const key = `meta-${monthIndex}`;
+              const currentData = tasksByDate[key] || { tasks: [] };
+              updateDayData(key, { ...currentData, notes: e.target.value });
+            }}
           />
         </div>
       </div>

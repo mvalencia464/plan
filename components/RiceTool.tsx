@@ -1,15 +1,22 @@
 
 import React from 'react';
-import { RiceProject, PRESET_COLORS } from '../types';
+import { RiceProject, PRESET_COLORS, ColorKey } from '../types';
+import { usePlanStore } from '../store/usePlanStore';
 
 interface RiceToolProps {
-  projects: RiceProject[];
-  onUpdateProjects: (projects: RiceProject[]) => void;
-  onDeployToKey: (project: RiceProject) => void;
+  onPromote?: () => void;
   readOnly?: boolean;
 }
 
-const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeployToKey, readOnly = false }) => {
+const RiceTool: React.FC<RiceToolProps> = ({ onPromote, readOnly = false }) => {
+  const { 
+    riceProjects: projects, 
+    updateRiceProjects: onUpdateProjects, 
+    colorKeys, 
+    updateColorKeys,
+    setActiveKeyId
+  } = usePlanStore();
+
   const calculateScore = (p: Partial<RiceProject>) => {
     const reach = p.reach || 0;
     const impact = p.impact || 0;
@@ -48,6 +55,18 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
 
   const handleSort = () => {
     onUpdateProjects([...projects].sort((a, b) => b.score - a.score));
+  };
+
+  const handleDeployToKey = (p: RiceProject) => {
+    const newKey: ColorKey = {
+      id: Math.random().toString(36).substr(2, 9),
+      label: p.name,
+      color: PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class,
+    };
+    updateColorKeys([...colorKeys, newKey]);
+    setActiveKeyId(newKey.id);
+    alert(`"${p.name}" has been added to your Stoke Planner Key! You can now drag on the calendar to highlight its timeframe.`);
+    if (onPromote) onPromote();
   };
 
   return (
@@ -171,7 +190,7 @@ const RiceTool: React.FC<RiceToolProps> = ({ projects, onUpdateProjects, onDeplo
                   <td className="px-6 py-4">
                     <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => onDeployToKey(p)}
+                          onClick={() => handleDeployToKey(p)}
                           className="p-1 text-gray-400 hover:text-black transition-colors"
                           title="Plot on Stoke Planner"
                         >

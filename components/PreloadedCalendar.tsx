@@ -1,14 +1,10 @@
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import { MONTH_NAMES, WEEKDAY_INITIALS, PreloadedEvent } from '../types';
 import { supabase } from '../services/supabaseClient';
+import { usePlanStore } from '../store/usePlanStore';
 
 interface PreloadedCalendarProps {
   year: number;
-  events: PreloadedEvent[];
-  onAddEvent?: (event: PreloadedEvent) => void;
-  onUpdateEvent?: (oldEvent: PreloadedEvent, newEvent: PreloadedEvent) => void;
-  onDeleteEvent?: (event: PreloadedEvent) => void;
-  onClearEvents?: () => void;
   userId?: string;
   readOnly?: boolean;
 }
@@ -165,7 +161,9 @@ const CalendarMonthRow = memo(({
   );
 });
 
-const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onAddEvent, onUpdateEvent, onDeleteEvent, onClearEvents, userId, readOnly = false }) => {
+const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, userId, readOnly = false }) => {
+  const { preloadedEvents: events, updatePreloadedEvents } = usePlanStore();
+  
   const COLUMNS = 37;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -176,6 +174,22 @@ const PreloadedCalendar: React.FC<PreloadedCalendarProps> = ({ year, events, onA
 
   const [isPublishing, setIsPublishing] = useState(false);
   const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
+
+  const onAddEvent = useCallback((event: PreloadedEvent) => {
+    updatePreloadedEvents([...events, { ...event, id: Math.random().toString(36).substr(2, 9) }]);
+  }, [events, updatePreloadedEvents]);
+
+  const onUpdateEvent = useCallback((oldEvent: PreloadedEvent, newEvent: PreloadedEvent) => {
+    updatePreloadedEvents(events.map(e => (e.id === oldEvent.id || (e.title === oldEvent.title && e.date === oldEvent.date)) ? newEvent : e));
+  }, [events, updatePreloadedEvents]);
+
+  const onDeleteEvent = useCallback((event: PreloadedEvent) => {
+    updatePreloadedEvents(events.filter(e => e.id !== event.id && (e.title !== event.title || e.date !== event.date)));
+  }, [events, updatePreloadedEvents]);
+  
+  const onClearEvents = useCallback(() => {
+    updatePreloadedEvents([]);
+  }, [updatePreloadedEvents]);
 
   const getGCalLink = (event: PreloadedEvent) => {
     const date = event.date.replace(/-/g, '');

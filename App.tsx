@@ -2,14 +2,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, laz
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseClient';
 import ErrorBoundary from './components/ErrorBoundary';
-import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS, Collaborator, Plan } from './types';
-import { generateYearlyPlan } from './services/geminiService';
+import { MONTH_NAMES, INITIAL_KEYS, Plan, Task } from './types';
+import { usePlanStore } from './store/usePlanStore';
 
 // Lazy load components for bundle size optimization
 const Dashboard = lazy(() => import('./components/Dashboard'));
 const MonthFocus = lazy(() => import('./components/MonthFocus'));
 const PreloadedCalendar = lazy(() => import('./components/PreloadedCalendar'));
-const Controls = lazy(() => import('./components/Controls'));
 const RiceTool = lazy(() => import('./components/RiceTool'));
 const CollaborationModal = lazy(() => import('./components/CollaborationModal'));
 const Landing = lazy(() => import('./components/Landing'));
@@ -37,8 +36,6 @@ const App: React.FC = () => {
   const [activeMonth, setActiveMonth] = useState<number>(new Date().getMonth());
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [years, setYears] = useState<number[]>([2024, 2025, 2026]);
-  const [activeKeyId, setActiveKeyId] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -56,11 +53,15 @@ const App: React.FC = () => {
   // Public View State
   const [isReadOnly, setIsReadOnly] = useState(false);
 
-  // Active Plan Data State (Derived/Synced with currentPlan)
-  const [tasksByDate, setTasksByDate] = useState<Record<string, any>>({});
-  const [colorKeys, setColorKeys] = useState<ColorKey[]>(INITIAL_KEYS);
-  const [preloadedEvents, setPreloadedEvents] = useState<PreloadedEvent[]>([]);
-  const [riceProjects, setRiceProjects] = useState<RiceProject[]>([]);
+  // Active Plan Data State (Managed by Zustand)
+  const { 
+    tasksByDate, 
+    colorKeys, 
+    preloadedEvents, 
+    riceProjects,
+    setPlanData,
+    resetStore
+  } = usePlanStore();
 
   // Auth & Data Sync Effects
   useEffect(() => {
@@ -113,15 +114,15 @@ const App: React.FC = () => {
   // Update local state when currentPlan changes
   useEffect(() => {
     if (currentPlan) {
-      setTasksByDate(currentPlan.tasks_by_date || {});
-      setColorKeys(currentPlan.color_keys || INITIAL_KEYS);
-      setPreloadedEvents(currentPlan.preloaded_events || []);
-      setRiceProjects(currentPlan.rice_projects || []);
+      setPlanData({
+        currentPlanId: currentPlan.id,
+        tasksByDate: currentPlan.tasks_by_date || {},
+        colorKeys: currentPlan.color_keys || INITIAL_KEYS,
+        preloadedEvents: currentPlan.preloaded_events || [],
+        riceProjects: currentPlan.rice_projects || []
+      });
     } else {
-      setTasksByDate({});
-      setColorKeys(INITIAL_KEYS);
-      setPreloadedEvents([]);
-      setRiceProjects([]);
+      resetStore();
     }
   }, [currentPlan]);
 
@@ -142,10 +143,12 @@ const App: React.FC = () => {
     if (data) {
       // For public view, we just set the local state directly, no "currentPlan" object needed really,
       // but to keep consistency we could fake one, or just set the state like we do.
-      if (data.tasks_by_date) setTasksByDate(data.tasks_by_date);
-      if (data.color_keys) setColorKeys(data.color_keys);
-      if (data.preloaded_events) setPreloadedEvents(data.preloaded_events);
-      if (data.rice_projects) setRiceProjects(data.rice_projects);
+      setPlanData({
+        tasksByDate: data.tasks_by_date || {},
+        colorKeys: data.color_keys || INITIAL_KEYS,
+        preloadedEvents: data.preloaded_events || [],
+        riceProjects: data.rice_projects || []
+      });
     }
   };
 
@@ -358,10 +361,7 @@ const App: React.FC = () => {
     setPlans([]);
     setCurrentPlan(null);
     setSharedPlans([]);
-    setTasksByDate({});
-    setColorKeys(INITIAL_KEYS);
-    setPreloadedEvents([]);
-    setRiceProjects([]);
+    resetStore();
   };
 
   const handleSwitchPlan = async (planId: string) => {
@@ -421,54 +421,21 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateTasks = useCallback((date: string, tasks: Task[]) => {
-    setTasksByDate(prev => ({
-      ...prev,
-      [date]: { ...prev[date], tasks }
-    }));
-  }, []);
 
-  const handleUpdateMeta = useCallback((monthIndex: number, type: 'objectives' | 'notes', value: string) => {
-    const key = `meta-${monthIndex}`;
-    setTasksByDate(prev => ({
-      ...prev,
-      [key]: { ...prev[key], [type]: value }
-    }));
-  }, []);
 
   const handleMonthClick = useCallback((idx: number) => {
     setActiveMonth(idx);
     setView('month');
   }, []);
 
-  const handleGeneratePlan = useCallback(async (theme: string) => {
-    setIsGenerating(true);
-    const events = await generateYearlyPlan(year, theme);
-    const eventsWithIds = events.map(e => ({
-      ...e,
-      id: Math.random().toString(36).substr(2, 9)
-    }));
-    setPreloadedEvents(eventsWithIds);
-    setIsGenerating(false);
-    setView('strategy');
-  }, [year]);
+
 
   const handleAddYear = useCallback(() => {
     const nextYear = Math.max(...years) + 1;
     setYears(prev => [...prev, nextYear]);
   }, [years]);
 
-  const handleDeployProject = useCallback((p: RiceProject) => {
-    const newKey: ColorKey = {
-      id: Math.random().toString(36).substr(2, 9),
-      label: p.name,
-      color: PRESET_COLORS[colorKeys.length % PRESET_COLORS.length].class,
-    };
-    setColorKeys(prev => [...prev, newKey]);
-    setActiveKeyId(newKey.id);
-    setView('dashboard');
-    alert(`"${p.name}" has been added to your Stoke Planner Key! You can now drag on the calendar to highlight its timeframe.`);
-  }, [colorKeys.length]);
+
 
   if (isAuthChecking) {
     return (
@@ -679,81 +646,25 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Global Controls - Restricted to Strategy View only */}
-      {view === 'strategy' && !isReadOnly && (
-        <Suspense fallback={null}>
-          <Controls
-            year={year}
-            years={years}
-            onYearChange={setYear}
-            onAddYear={handleAddYear}
-            onGeneratePlan={handleGeneratePlan}
-            isLoading={isGenerating}
-          />
-        </Suspense>
-      )}
-
       <main className="flex-1 p-4 md:p-8 xl:p-12 print-area overflow-x-hidden">
         <div className="max-w-[1800px] mx-auto">
-          {view === 'dashboard' && (
-            <div className="animate-in fade-in duration-500">
-              <Suspense fallback={<SectionLoading />}>
-                <Dashboard
-                  year={year}
-                  onMonthClick={handleMonthClick}
-                  tasksByDate={tasksByDate}
-                  colorKeys={colorKeys}
-                  onUpdateKeys={setColorKeys}
-                  activeKeyId={activeKeyId}
-                  setActiveKeyId={setActiveKeyId}
-                  riceProjects={riceProjects}
-                  userId={session?.user.id}
-                  planId={currentPlan?.id}
-                  readOnly={isReadOnly}
-                />
-              </Suspense>
-            </div>
-          )}
-
-          {view === 'month' && (
-            <div className="animate-in slide-in-from-right-8 duration-500">
-              <Suspense fallback={<SectionLoading />}>
-                <MonthFocus
-                  year={year}
-                  monthIndex={activeMonth}
-                  tasksByDate={tasksByDate}
-                  colorKeys={colorKeys}
-                  preloadedEvents={preloadedEvents}
-                  onUpdateTasks={handleUpdateTasks}
-                  onUpdateMeta={handleUpdateMeta}
-                  activeKeyId={activeKeyId}
-                  readOnly={isReadOnly}
-                />
-              </Suspense>
-            </div>
-          )}
-
-          {view === 'strategy' && (
-            <div className="animate-in fade-in zoom-in-95 duration-500">
+                      {view === 'dashboard' && (
+                      <div className="animate-in fade-in duration-500">
+                        <Suspense fallback={<SectionLoading />}>
+                          <Dashboard
+                            year={year}
+                            onMonthClick={handleMonthClick}
+                            userId={session?.user.id}
+                            readOnly={isReadOnly}
+                          />
+                        </Suspense>
+                      </div>
+                    )}
+          
+                    {view === 'strategy' && (            <div className="animate-in fade-in zoom-in-95 duration-500">
               <Suspense fallback={<SectionLoading />}>
                 <PreloadedCalendar
                   year={year}
-                  events={preloadedEvents}
-                  onAddEvent={(e) => setPreloadedEvents(prev => [...prev, { ...e, id: Math.random().toString(36).substr(2, 9) }])}
-                  onUpdateEvent={(oldE, newE) => {
-                    setPreloadedEvents(prev => prev.map(e => {
-                      // Match by ID if available, otherwise fallback to exact match of properties
-                      if (e.id && oldE.id) return e.id === oldE.id ? newE : e;
-                      return (e.date === oldE.date && e.title === oldE.title && e.category === oldE.category) ? newE : e;
-                    }));
-                  }}
-                  onDeleteEvent={(eToDelete) => {
-                    setPreloadedEvents(prev => prev.filter(e => {
-                      if (e.id && eToDelete.id) return e.id !== eToDelete.id;
-                      return !(e.date === eToDelete.date && e.title === eToDelete.title && e.category === eToDelete.category);
-                    }));
-                  }}
-                  onClearEvents={() => setPreloadedEvents([])}
                   userId={session?.user.id}
                   readOnly={isReadOnly}
                 />
@@ -761,19 +672,16 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {view === 'rice' && (
-            <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-              <Suspense fallback={<SectionLoading />}>
-                <RiceTool
-                  projects={riceProjects}
-                  onUpdateProjects={setRiceProjects}
-                  onDeployToKey={handleDeployProject}
-                  readOnly={isReadOnly}
-                />
-              </Suspense>
-            </div>
-          )}
-        </div>
+                      {view === 'rice' && (
+                      <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
+                        <Suspense fallback={<SectionLoading />}>
+                          <RiceTool
+                            onPromote={() => setView('dashboard')}
+                            readOnly={isReadOnly}
+                          />
+                        </Suspense>
+                      </div>
+                    )}        </div>
       </main>
 
       <footer className="py-12 text-center no-print opacity-20 hover:opacity-100 transition-opacity">
