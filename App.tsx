@@ -1,15 +1,35 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, lazy } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseClient';
-import Dashboard from './components/Dashboard';
-import MonthFocus from './components/MonthFocus';
-import PreloadedCalendar from './components/PreloadedCalendar';
-import Controls from './components/Controls';
-import RiceTool from './components/RiceTool';
-import CollaborationModal from './components/CollaborationModal';
-import Landing from './components/Landing';
 import { Task, MONTH_NAMES, ColorKey, INITIAL_KEYS, PreloadedEvent, RiceProject, PRESET_COLORS, Collaborator, Plan } from './types';
 import { generateYearlyPlan } from './services/geminiService';
+
+// Lazy load components for bundle size optimization
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const MonthFocus = lazy(() => import('./components/MonthFocus'));
+const PreloadedCalendar = lazy(() => import('./components/PreloadedCalendar'));
+const Controls = lazy(() => import('./components/Controls'));
+const RiceTool = lazy(() => import('./components/RiceTool'));
+const CollaborationModal = lazy(() => import('./components/CollaborationModal'));
+const Landing = lazy(() => import('./components/Landing'));
+
+const LoadingFallback = () => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="animate-pulse flex flex-col items-center">
+      <div className="h-4 w-32 bg-gray-200 rounded mb-4"></div>
+      <div className="h-4 w-24 bg-gray-200 rounded"></div>
+    </div>
+  </div>
+);
+
+const SectionLoading = () => (
+  <div className="h-full w-full flex items-center justify-center py-20">
+    <div className="animate-pulse flex flex-col items-center">
+      <div className="h-4 w-32 bg-gray-200 rounded mb-4"></div>
+      <div className="h-4 w-24 bg-gray-200 rounded"></div>
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
   const [view, setView] = useState<'dashboard' | 'month' | 'strategy' | 'rice'>('dashboard');
@@ -461,7 +481,11 @@ const App: React.FC = () => {
   }
 
   if (!session && !isReadOnly) {
-    return <Landing />;
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <Landing />
+      </Suspense>
+    );
   }
 
   return (
@@ -653,86 +677,96 @@ const App: React.FC = () => {
 
       {/* Global Controls - Restricted to Strategy View only */}
       {view === 'strategy' && !isReadOnly && (
-        <Controls
-          year={year}
-          years={years}
-          onYearChange={setYear}
-          onAddYear={handleAddYear}
-          onGeneratePlan={handleGeneratePlan}
-          isLoading={isGenerating}
-        />
+        <Suspense fallback={null}>
+          <Controls
+            year={year}
+            years={years}
+            onYearChange={setYear}
+            onAddYear={handleAddYear}
+            onGeneratePlan={handleGeneratePlan}
+            isLoading={isGenerating}
+          />
+        </Suspense>
       )}
 
       <main className="flex-1 p-4 md:p-8 xl:p-12 print-area overflow-x-hidden">
         <div className="max-w-[1800px] mx-auto">
           {view === 'dashboard' && (
             <div className="animate-in fade-in duration-500">
-              <Dashboard
-                year={year}
-                onMonthClick={handleMonthClick}
-                tasksByDate={tasksByDate}
-                colorKeys={colorKeys}
-                onUpdateKeys={setColorKeys}
-                activeKeyId={activeKeyId}
-                setActiveKeyId={setActiveKeyId}
-                riceProjects={riceProjects}
-                userId={session?.user.id}
-                planId={currentPlan?.id}
-                readOnly={isReadOnly}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <Dashboard
+                  year={year}
+                  onMonthClick={handleMonthClick}
+                  tasksByDate={tasksByDate}
+                  colorKeys={colorKeys}
+                  onUpdateKeys={setColorKeys}
+                  activeKeyId={activeKeyId}
+                  setActiveKeyId={setActiveKeyId}
+                  riceProjects={riceProjects}
+                  userId={session?.user.id}
+                  planId={currentPlan?.id}
+                  readOnly={isReadOnly}
+                />
+              </Suspense>
             </div>
           )}
 
           {view === 'month' && (
             <div className="animate-in slide-in-from-right-8 duration-500">
-              <MonthFocus
-                year={year}
-                monthIndex={activeMonth}
-                tasksByDate={tasksByDate}
-                colorKeys={colorKeys}
-                preloadedEvents={preloadedEvents}
-                onUpdateTasks={handleUpdateTasks}
-                onUpdateMeta={handleUpdateMeta}
-                activeKeyId={activeKeyId}
-                readOnly={isReadOnly}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <MonthFocus
+                  year={year}
+                  monthIndex={activeMonth}
+                  tasksByDate={tasksByDate}
+                  colorKeys={colorKeys}
+                  preloadedEvents={preloadedEvents}
+                  onUpdateTasks={handleUpdateTasks}
+                  onUpdateMeta={handleUpdateMeta}
+                  activeKeyId={activeKeyId}
+                  readOnly={isReadOnly}
+                />
+              </Suspense>
             </div>
           )}
 
           {view === 'strategy' && (
             <div className="animate-in fade-in zoom-in-95 duration-500">
-              <PreloadedCalendar
-                year={year}
-                events={preloadedEvents}
-                onAddEvent={(e) => setPreloadedEvents(prev => [...prev, { ...e, id: Math.random().toString(36).substr(2, 9) }])}
-                onUpdateEvent={(oldE, newE) => {
-                  setPreloadedEvents(prev => prev.map(e => {
-                    // Match by ID if available, otherwise fallback to exact match of properties
-                    if (e.id && oldE.id) return e.id === oldE.id ? newE : e;
-                    return (e.date === oldE.date && e.title === oldE.title && e.category === oldE.category) ? newE : e;
-                  }));
-                }}
-                onDeleteEvent={(eToDelete) => {
-                  setPreloadedEvents(prev => prev.filter(e => {
-                    if (e.id && eToDelete.id) return e.id !== eToDelete.id;
-                    return !(e.date === eToDelete.date && e.title === eToDelete.title && e.category === eToDelete.category);
-                  }));
-                }}
-                onClearEvents={() => setPreloadedEvents([])}
-                userId={session?.user.id}
-                readOnly={isReadOnly}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <PreloadedCalendar
+                  year={year}
+                  events={preloadedEvents}
+                  onAddEvent={(e) => setPreloadedEvents(prev => [...prev, { ...e, id: Math.random().toString(36).substr(2, 9) }])}
+                  onUpdateEvent={(oldE, newE) => {
+                    setPreloadedEvents(prev => prev.map(e => {
+                      // Match by ID if available, otherwise fallback to exact match of properties
+                      if (e.id && oldE.id) return e.id === oldE.id ? newE : e;
+                      return (e.date === oldE.date && e.title === oldE.title && e.category === oldE.category) ? newE : e;
+                    }));
+                  }}
+                  onDeleteEvent={(eToDelete) => {
+                    setPreloadedEvents(prev => prev.filter(e => {
+                      if (e.id && eToDelete.id) return e.id !== eToDelete.id;
+                      return !(e.date === eToDelete.date && e.title === eToDelete.title && e.category === eToDelete.category);
+                    }));
+                  }}
+                  onClearEvents={() => setPreloadedEvents([])}
+                  userId={session?.user.id}
+                  readOnly={isReadOnly}
+                />
+              </Suspense>
             </div>
           )}
 
           {view === 'rice' && (
             <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-              <RiceTool
-                projects={riceProjects}
-                onUpdateProjects={setRiceProjects}
-                onDeployToKey={handleDeployProject}
-                readOnly={isReadOnly}
-              />
+              <Suspense fallback={<SectionLoading />}>
+                <RiceTool
+                  projects={riceProjects}
+                  onUpdateProjects={setRiceProjects}
+                  onDeployToKey={handleDeployProject}
+                  readOnly={isReadOnly}
+                />
+              </Suspense>
             </div>
           )}
         </div>
@@ -744,12 +778,16 @@ const App: React.FC = () => {
         </p>
       </footer>
 
-      <CollaborationModal
-        isOpen={isCollaborationModalOpen}
-        onClose={() => setIsCollaborationModalOpen(false)}
-        currentUserEmail={session?.user.email}
-        currentPlanId={currentPlan?.id}
-      />
+      <Suspense fallback={null}>
+        {isCollaborationModalOpen && (
+          <CollaborationModal
+            isOpen={isCollaborationModalOpen}
+            onClose={() => setIsCollaborationModalOpen(false)}
+            currentUserEmail={session?.user.email}
+            currentPlanId={currentPlan?.id}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };
